@@ -345,26 +345,46 @@
   // 그 구간을 눌렀을 때 렌즈 전체에 "그 콘텐츠만" 뜸 (없는 파일은 조용히 무시)
   var PEEK_KEYS = ['2017', '2019', '2020', '2021', '2023', '2024-1', '2024-2', '2025', '2026'];
   var mediaBox = document.getElementById('loupe-media');
-  var MEDIA = {};  // key → 로드 성공한 img/video 엘리먼트
+  // key → {v: 비디오, i: 이미지}. 비디오는 즉시 등록(iOS는 화면 밖 비디오를
+  // 미리 로드하지 않아 loadeddata가 안 오므로), 실패하면 error에서 해제
+  var MEDIA = {};
 
   PEEK_KEYS.forEach(function (key) {
+    MEDIA[key] = { v: null, i: null };
     ['mp4', 'jpg', 'png'].forEach(function (ext) {
       var m;
       if (ext === 'mp4') {
         m = document.createElement('video');
         m.muted = true; m.loop = true; m.playsInline = true;
+        m.preload = 'auto';
         m.setAttribute('playsinline', ''); m.setAttribute('muted', '');
-        m.addEventListener('loadeddata', function () { if (!MEDIA[key]) MEDIA[key] = m; });
+        MEDIA[key].v = m;
+        m.addEventListener('error', function () { if (MEDIA[key].v === m) MEDIA[key].v = null; m.remove(); });
       } else {
         m = document.createElement('img');
-        m.addEventListener('load', function () { if (!MEDIA[key]) MEDIA[key] = m; });
+        m.addEventListener('load', function () { if (!MEDIA[key].i) MEDIA[key].i = m; });
+        m.addEventListener('error', function () { if (MEDIA[key].i === m) MEDIA[key].i = null; m.remove(); });
       }
       m.className = 'media';
-      m.addEventListener('error', function () { m.remove(); });
       m.src = 'assets/portfolio/' + key + '.' + ext;
       mediaBox.appendChild(m);
     });
   });
+
+  function pickMedia(key) {
+    var e = MEDIA[key];
+    return e ? (e.v || e.i) : null;
+  }
+
+  // iOS: 첫 터치(제스처) 때 비디오 로드를 한 번 킥해서 프리로드를 살림
+  var primed = false;
+  function primeVideos() {
+    if (primed) return;
+    primed = true;
+    PEEK_KEYS.forEach(function (key) {
+      if (MEDIA[key].v) { try { MEDIA[key].v.load(); } catch (e) {} }
+    });
+  }
 
   function syncWidth() { world.style.width = window.innerWidth + 'px'; }
   syncWidth();
@@ -461,7 +481,7 @@
         var r = us[j].getBoundingClientRect();
         if (x >= r.left - SLOP_X && x <= r.right + SLOP_X &&
             y >= r.top - SLOP_Y && y <= r.bottom + SLOP_Y) {
-          return MEDIA[PEEK_KEYS[i]] || null;
+          return pickMedia(PEEK_KEYS[i]);
         }
       }
     }
@@ -475,7 +495,10 @@
     inner.style.display = curMedia ? 'none' : 'block';
     if (curMedia) {
       curMedia.style.display = 'block';
-      if (curMedia.tagName === 'VIDEO') { curMedia.currentTime = 0; curMedia.play().catch(function () {}); }
+      if (curMedia.tagName === 'VIDEO') {
+        try { curMedia.currentTime = 0; } catch (e) {}
+        curMedia.play().catch(function () {});
+      }
     }
     moveTo(x, y);
     loupe.classList.add('on');
@@ -509,6 +532,7 @@
   }
 
   document.addEventListener('touchstart', function (e) {
+    primeVideos();  // 첫 제스처에서 iOS 비디오 프리로드 활성화
     if (e.touches.length !== 1) return hide();
     var t = e.touches[0];
     pressStart(t.clientX, t.clientY);
