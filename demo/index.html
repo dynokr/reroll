@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <meta name="theme-color" content="#fbfbfb" />
-<title>jongwon, Park</title>
+<title>jongwon, Park — lens demo</title>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -162,6 +162,61 @@
     .year { font-size: 11px; }
     .profile { gap: 18px; }
   }
+
+  /* ── 꾹 누르면 나오는 리퀴드 글래스 렌즈 ── */
+  .page {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  #loupe {
+    position: fixed;
+    width: 198px;
+    height: 188px;
+    border-radius: 50%;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 999;
+    background: var(--bg);
+    box-shadow:
+      0 12px 32px rgba(0, 0, 0, 0.20),
+      0 3px 10px rgba(0, 0, 0, 0.14);
+    opacity: 0;
+    transform: scale(0.4);
+    transition: transform 0.16s cubic-bezier(0.2, 0.9, 0.3, 1.2), opacity 0.12s ease;
+    will-change: transform, left, top;
+  }
+
+  #loupe.on { opacity: 1; transform: scale(1); }
+
+  /* 유리 테두리·윤광 */
+  #loupe::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.7),
+      inset 0 1px 8px rgba(255, 255, 255, 0.6),
+      inset 0 -10px 16px rgba(0, 0, 0, 0.07),
+      inset 8px 0 14px rgba(0, 0, 0, 0.03),
+      inset -8px 0 14px rgba(0, 0, 0, 0.03);
+    background: linear-gradient(160deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0) 42%);
+  }
+
+  #loupe-inner {
+    position: absolute;
+    left: 0;
+    top: 0;
+    transform-origin: 0 0;
+  }
+
+  /* 렌즈 안에서만 보이는 다른 세계: 키워드 형광펜 */
+  .lens-view .desc u {
+    background: linear-gradient(transparent 18%, #ffe89a 18%, #ffe89a 92%, transparent 92%);
+    text-decoration-color: #d9a400;
+  }
 </style>
 </head>
 <body>
@@ -228,5 +283,99 @@
   <p class="contact">Contact<span class="bar">l</span><a href="mailto:whddnjs761@gmail.com">whddnjs761@gmail.com</a></p>
 
 </div>
+
+<div id="loupe"><div id="loupe-inner"></div></div>
+
+<script>
+(function () {
+  var LENS_SCALE = 1.5;
+  var HOLD_MS = 380;       // 이 시간 이상 누르고 있어야 렌즈 등장
+  var MOVE_CANCEL = 12;    // 등장 전 이만큼 움직이면 스크롤로 간주하고 취소
+  var LIFT = 26;           // 손가락 위로 렌즈를 띄우는 간격
+  var PAN_GAIN = 3;        // 손가락 이동량 대비 렌즈 속 시점 이동 배율
+
+  var loupe = document.getElementById('loupe');
+  var inner = document.getElementById('loupe-inner');
+  var page = document.querySelector('.page');
+
+  // 렌즈 속 세계: 페이지 복제본 (여기만 바꾸면 렌즈에 다른 내용이 보임)
+  var world = document.createElement('div');
+  world.className = 'lens-view';
+  world.style.background = '#fbfbfb';
+  world.appendChild(page.cloneNode(true));
+  inner.appendChild(world);
+
+  function syncWidth() { world.style.width = window.innerWidth + 'px'; }
+  syncWidth();
+  window.addEventListener('resize', syncWidth);
+
+  var W = 198, H = 188;
+  var timer = null, active = false, sx = 0, sy = 0;
+  var ax = 0, ay = 0;  // 렌즈가 뜬 순간의 기준점 (패닝 증폭의 중심)
+
+  function moveTo(x, y) {
+    var lx = Math.min(Math.max(x - W / 2, 4), window.innerWidth - W - 4);
+    var ly = Math.max(y - H - LIFT, 4);
+    loupe.style.left = lx + 'px';
+    loupe.style.top = ly + 'px';
+    // 기준점에서 벗어난 만큼을 증폭해서 시점을 이동 →
+    // 손가락을 조금만 움직여도 에셋 가장자리까지 훑어볼 수 있음
+    var cx = ax + (x - ax) * PAN_GAIN;
+    var cyDoc = (ay + window.scrollY) + (y - ay) * PAN_GAIN;
+    cx = Math.min(Math.max(cx, 0), window.innerWidth);
+    cyDoc = Math.min(Math.max(cyDoc, 0), world.offsetHeight);
+    inner.style.transform =
+      'translate(' + (W / 2 - cx * LENS_SCALE) + 'px,' +
+                     (H / 2 - cyDoc * LENS_SCALE) + 'px)' +
+      ' scale(' + LENS_SCALE + ')';
+  }
+
+  function show(x, y) { active = true; ax = x; ay = y; moveTo(x, y); loupe.classList.add('on'); }
+  function hide() {
+    active = false;
+    clearTimeout(timer);
+    timer = null;
+    loupe.classList.remove('on');
+  }
+
+  function pressStart(x, y) {
+    sx = x; sy = y;
+    clearTimeout(timer);
+    timer = setTimeout(function () { show(sx, sy); }, HOLD_MS);
+  }
+
+  function pressMove(x, y, e) {
+    if (active) {
+      if (e) e.preventDefault();  // 렌즈 사용 중엔 스크롤 잠금
+      moveTo(x, y);
+    } else if (timer && Math.hypot(x - sx, y - sy) > MOVE_CANCEL) {
+      hide();
+    } else { sx = x; sy = y; }
+  }
+
+  document.addEventListener('touchstart', function (e) {
+    if (e.touches.length !== 1) return hide();
+    var t = e.touches[0];
+    pressStart(t.clientX, t.clientY);
+  }, { passive: true });
+
+  document.addEventListener('touchmove', function (e) {
+    var t = e.touches[0];
+    pressMove(t.clientX, t.clientY, e);
+  }, { passive: false });
+
+  document.addEventListener('touchend', hide);
+  document.addEventListener('touchcancel', hide);
+
+  // 데스크톱에서도 확인할 수 있게 마우스 지원
+  document.addEventListener('mousedown', function (e) { pressStart(e.clientX, e.clientY); });
+  document.addEventListener('mousemove', function (e) { if (timer || active) pressMove(e.clientX, e.clientY, e); });
+  document.addEventListener('mouseup', hide);
+
+  document.addEventListener('contextmenu', function (e) {
+    if (active) e.preventDefault();
+  });
+})();
+</script>
 </body>
 </html>
