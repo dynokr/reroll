@@ -205,12 +205,57 @@
     background: linear-gradient(160deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0) 42%);
   }
 
-  /* 가장자리 굴절: 렌즈 속 화면 전체에 변위 필터를 걸되,
-     변위 맵이 중앙은 0이라 중앙은 평평하고 림 근처만 휘어짐 */
   #loupe-glass {
     position: absolute;
     inset: 0;
-    filter: url(#lensWarp);
+  }
+
+  /* 가장자리 굴절(전 브라우저): 같은 콘텐츠를 1.12배로 키운 복제 레이어를
+     림 밴드에만 마스크로 보여줌 → 테두리 근처 콘텐츠가 유리처럼 바깥으로 휘어 보임 */
+  #glass-rim {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    filter: blur(1px) saturate(1.12);
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
+  }
+
+  #rim-zoom {
+    position: absolute;
+    inset: 0;
+    transform: scale(1.12);
+  }
+
+  #rim-inner {
+    position: absolute;
+    left: 0;
+    top: 0;
+    transform-origin: 0 0;
+  }
+
+  #rim-canvas {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    display: none;
+  }
+
+  /* 애플 리퀴드 글래스 특유의 무지개빛 프리즘 링 */
+  #prism {
+    position: absolute;
+    inset: 0;
+    border-radius: 62px;
+    pointer-events: none;
+    background: conic-gradient(from 210deg,
+      #ffb3b3, #ffe0a3, #b8ffc4, #a8dcff, #c9b3ff, #ffb3ea, #ffb3b3);
+    mix-blend-mode: multiply;
+    filter: blur(2.5px) saturate(1.6);
+    opacity: 0.6;
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
   }
 
   #loupe-inner {
@@ -310,17 +355,11 @@
 
 </div>
 
-<div id="loupe"><div id="loupe-glass"><div id="loupe-inner"></div><div id="loupe-media"></div></div></div>
-
-<svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <filter id="lensWarp" filterUnits="userSpaceOnUse" x="0" y="0" width="232" height="150"
-          color-interpolation-filters="sRGB">
-    <feImage id="lensWarpMap" href="" x="0" y="0" width="232" height="150"
-             preserveAspectRatio="none" result="map" />
-    <feDisplacementMap in="SourceGraphic" in2="map" scale="30"
-                       xChannelSelector="R" yChannelSelector="G" />
-  </filter>
-</svg>
+<div id="loupe">
+  <div id="loupe-glass"><div id="loupe-inner"></div><div id="loupe-media"></div></div>
+  <div id="glass-rim"><div id="rim-zoom"><div id="rim-inner"></div><canvas id="rim-canvas"></canvas></div></div>
+  <div id="prism"></div>
+</div>
 
 <script>
 (function () {
@@ -386,50 +425,73 @@
     });
   }
 
-  function syncWidth() { world.style.width = window.innerWidth + 'px'; }
+  function syncWidth() {
+    world.style.width = window.innerWidth + 'px';
+    if (rimWorld) rimWorld.style.width = window.innerWidth + 'px';
+  }
   syncWidth();
   window.addEventListener('resize', syncWidth);
 
-  // 가장자리 굴절용 변위 맵 생성: 중앙은 무변위(128,128),
-  // 둥근 직사각형 테두리에서 안쪽 BAND(px) 구간만 가장자리 방향으로 휘어짐
-  (function buildWarpMap() {
-    var w = 232, h = 150, R = 62, BAND = 26;
+  // 림 마스크 생성: 둥근 직사각형 테두리에서 안쪽으로 band(px)만 보이는 알파 링.
+  // SVG 필터는 iOS 사파리가 안 그려줘서, 마스크+복제 레이어 방식으로 전 브라우저 대응
+  function roundedRectSdf(px, py, w, h, R) {  // 중심 기준, 안쪽 음수
+    var qx = Math.abs(px) - (w / 2 - R), qy = Math.abs(py) - (h / 2 - R);
+    var ax = Math.max(qx, 0), ay = Math.max(qy, 0);
+    return Math.sqrt(ax * ax + ay * ay) + Math.min(Math.max(qx, qy), 0) - R;
+  }
 
-    function sdf(px, py) {  // 중심 기준 rounded-rect signed distance (안쪽 음수)
-      var qx = Math.abs(px) - (w / 2 - R), qy = Math.abs(py) - (h / 2 - R);
-      var ax = Math.max(qx, 0), ay = Math.max(qy, 0);
-      return Math.sqrt(ax * ax + ay * ay) + Math.min(Math.max(qx, qy), 0) - R;
-    }
-
+  function ringMask(band, gamma) {
+    var w = 232, h = 150, R = 62;
     var c = document.createElement('canvas');
     c.width = w; c.height = h;
     var g = c.getContext('2d');
     var img = g.createImageData(w, h);
-    var cx = w / 2, cy = h / 2;
     for (var y = 0; y < h; y++) {
       for (var x = 0; x < w; x++) {
-        var px = x - cx, py = y - cy;
-        var edge = -sdf(px, py);  // 테두리까지 남은 거리
-        var t = 0;
-        if (edge < BAND) {
-          t = Math.pow(1 - Math.max(edge, 0) / BAND, 1.7);
-        }
-        // 테두리 바깥 방향(법선) = SDF 기울기
-        var gx = sdf(px + 1, py) - sdf(px - 1, py);
-        var gy = sdf(px, py + 1) - sdf(px, py - 1);
-        var gl = Math.sqrt(gx * gx + gy * gy) || 1;
+        var edge = -roundedRectSdf(x - w / 2 + 0.5, y - h / 2 + 0.5, w, h, R);
+        var a = 0;
+        if (edge > 0 && edge < band) a = Math.pow(1 - edge / band, gamma);
+        else if (edge <= 0) a = 1;  // 테두리 바깥은 border-radius 클리핑에 맡김
         var i = (y * w + x) * 4;
-        img.data[i]     = Math.round(128 - (gx / gl) * t * 127);
-        img.data[i + 1] = Math.round(128 - (gy / gl) * t * 127);
-        img.data[i + 2] = 128;
-        img.data[i + 3] = 255;
+        img.data[i] = img.data[i + 1] = img.data[i + 2] = 255;
+        img.data[i + 3] = Math.round(a * 255);
       }
     }
     g.putImageData(img, 0, 0);
-    var map = document.getElementById('lensWarpMap');
-    map.setAttribute('href', c.toDataURL());
-    map.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', c.toDataURL());
-  })();
+    return 'url(' + c.toDataURL() + ')';
+  }
+
+  var rimEl = document.getElementById('glass-rim');
+  var prismEl = document.getElementById('prism');
+  var refrMask = ringMask(30, 1.3);   // 굴절 밴드: 림에서 30px
+  var prismMask = ringMask(9, 1.0);   // 프리즘 링: 림에서 9px
+  rimEl.style.webkitMaskImage = refrMask; rimEl.style.maskImage = refrMask;
+  prismEl.style.webkitMaskImage = prismMask; prismEl.style.maskImage = prismMask;
+
+  // 굴절 레이어용 콘텐츠 복제 (텍스트 모드)
+  var rimInner = document.getElementById('rim-inner');
+  var rimWorld = document.createElement('div');
+  rimWorld.className = 'lens-view';
+  rimWorld.style.background = '#fbfbfb';
+  rimWorld.appendChild(page.cloneNode(true));
+  rimInner.appendChild(rimWorld);
+  syncWidth();
+
+  // 굴절 레이어용 캔버스 (미디어 모드: 비디오/이미지를 매 프레임 미러링)
+  var rimCanvas = document.getElementById('rim-canvas');
+  rimCanvas.width = 232 * 2; rimCanvas.height = 150 * 2;
+  var rimCtx = rimCanvas.getContext('2d');
+  rimCtx.scale(2, 2);
+  var mediaGeom = { mx: 0, my: 0, bw: 0, bh: 0 };
+  var rafId = null;
+
+  function drawRim() {
+    rafId = null;
+    if (!active || !curMedia) return;
+    rimCtx.clearRect(0, 0, 232, 150);
+    try { rimCtx.drawImage(curMedia, mediaGeom.mx, mediaGeom.my, mediaGeom.bw, mediaGeom.bh); } catch (e) {}
+    rafId = requestAnimationFrame(drawRim);
+  }
 
   var W = 232, H = 150;
   var MEDIA_ZOOM = 2;  // 미디어 모드에서 콘텐츠가 렌즈의 몇 배 크기로 깔릴지
@@ -457,6 +519,7 @@
       curMedia.style.width = bw + 'px';
       curMedia.style.height = bh + 'px';
       curMedia.style.transform = 'translate(' + mx + 'px,' + my + 'px)';
+      mediaGeom.mx = mx; mediaGeom.my = my; mediaGeom.bw = bw; mediaGeom.bh = bh;
       return;
     }
 
@@ -465,10 +528,11 @@
     var cyDoc = (ay + window.scrollY) + (y - ay) * PAN_GAIN;
     cx = Math.min(Math.max(cx, 0), window.innerWidth);
     cyDoc = Math.min(Math.max(cyDoc, 0), world.offsetHeight);
-    inner.style.transform =
-      'translate(' + (W / 2 - cx * LENS_SCALE) + 'px,' +
-                     (H / 2 - cyDoc * LENS_SCALE) + 'px)' +
-      ' scale(' + LENS_SCALE + ')';
+    var tf = 'translate(' + (W / 2 - cx * LENS_SCALE) + 'px,' +
+                            (H / 2 - cyDoc * LENS_SCALE) + 'px)' +
+             ' scale(' + LENS_SCALE + ')';
+    inner.style.transform = tf;
+    rimInner.style.transform = tf;  // 굴절 레이어도 같은 시점 (줌은 rim-zoom이 처리)
   }
 
   function mediaAt(x, y) {
@@ -493,12 +557,15 @@
     curMedia = mediaAt(x, y);
     mediaBox.style.display = curMedia ? 'block' : 'none';
     inner.style.display = curMedia ? 'none' : 'block';
+    rimInner.style.display = curMedia ? 'none' : 'block';
+    rimCanvas.style.display = curMedia ? 'block' : 'none';
     if (curMedia) {
       curMedia.style.display = 'block';
       if (curMedia.tagName === 'VIDEO') {
         try { curMedia.currentTime = 0; } catch (e) {}
         curMedia.play().catch(function () {});
       }
+      if (!rafId) rafId = requestAnimationFrame(drawRim);
     }
     moveTo(x, y);
     loupe.classList.add('on');
@@ -509,6 +576,7 @@
     clearTimeout(timer);
     timer = null;
     loupe.classList.remove('on');
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
     if (curMedia) {
       if (curMedia.tagName === 'VIDEO') curMedia.pause();
       curMedia.style.display = 'none';
