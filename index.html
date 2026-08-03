@@ -172,8 +172,8 @@
 
   #loupe {
     position: fixed;
-    width: 132px;
-    height: 126px;
+    width: 198px;
+    height: 188px;
     border-radius: 50%;
     overflow: hidden;
     pointer-events: none;
@@ -292,6 +292,7 @@
   var HOLD_MS = 380;       // 이 시간 이상 누르고 있어야 렌즈 등장
   var MOVE_CANCEL = 12;    // 등장 전 이만큼 움직이면 스크롤로 간주하고 취소
   var LIFT = 26;           // 손가락 위로 렌즈를 띄우는 간격
+  var PAN_GAIN = 3;        // 손가락 이동량 대비 렌즈 속 시점 이동 배율
 
   var loupe = document.getElementById('loupe');
   var inner = document.getElementById('loupe-inner');
@@ -308,23 +309,28 @@
   syncWidth();
   window.addEventListener('resize', syncWidth);
 
-  var W = 132, H = 126;
+  var W = 198, H = 188;
   var timer = null, active = false, sx = 0, sy = 0;
+  var ax = 0, ay = 0;  // 렌즈가 뜬 순간의 기준점 (패닝 증폭의 중심)
 
   function moveTo(x, y) {
     var lx = Math.min(Math.max(x - W / 2, 4), window.innerWidth - W - 4);
     var ly = Math.max(y - H - LIFT, 4);
     loupe.style.left = lx + 'px';
     loupe.style.top = ly + 'px';
-    // 화면좌표 (x,y) 지점이 렌즈 정중앙에 확대되어 오도록 복제본을 이동
-    var docY = y + window.scrollY;
+    // 기준점에서 벗어난 만큼을 증폭해서 시점을 이동 →
+    // 손가락을 조금만 움직여도 에셋 가장자리까지 훑어볼 수 있음
+    var cx = ax + (x - ax) * PAN_GAIN;
+    var cyDoc = (ay + window.scrollY) + (y - ay) * PAN_GAIN;
+    cx = Math.min(Math.max(cx, 0), window.innerWidth);
+    cyDoc = Math.min(Math.max(cyDoc, 0), world.offsetHeight);
     inner.style.transform =
-      'translate(' + (W / 2 - x * LENS_SCALE) + 'px,' +
-                     (H / 2 - docY * LENS_SCALE) + 'px)' +
+      'translate(' + (W / 2 - cx * LENS_SCALE) + 'px,' +
+                     (H / 2 - cyDoc * LENS_SCALE) + 'px)' +
       ' scale(' + LENS_SCALE + ')';
   }
 
-  function show(x, y) { active = true; moveTo(x, y); loupe.classList.add('on'); }
+  function show(x, y) { active = true; ax = x; ay = y; moveTo(x, y); loupe.classList.add('on'); }
   function hide() {
     active = false;
     clearTimeout(timer);
