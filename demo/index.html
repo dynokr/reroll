@@ -322,6 +322,7 @@
   var clipEl = document.getElementById('loupe-clip');
   var glCanvas = document.getElementById('lens-gl');
   var page = document.querySelector('.page');
+  var DEBUG = /lensdebug/.test(location.search);  // ?lensdebug=1: 렌즈 유지 + GL 상태 배지
 
   // ── 렌즈 모양 SDF & 클리핑 마스크 (iOS 비디오/캔버스 radius 탈출 방지) ──
   function roundedRectSdf(px, py, w, h, r) {
@@ -525,7 +526,7 @@
   var gl = glCanvas.getContext('webgl', { premultipliedAlpha: true }) ||
            glCanvas.getContext('experimental-webgl');
   var glOK = false, prog = null, uni = {}, texPage = null, texMedia = null;
-  var maxTex = 4096;
+  var maxTex = 4096, glErr = '';
   var ctx2d = null;  // WebGL 불가 시 폴백 (굴절 없는 평면 렌즈)
 
   function compile(type, src) {
@@ -620,7 +621,15 @@
       texMedia = makeTex();
       maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE) || 4096;
       glOK = true;
-    } catch (e) { glOK = false; console.warn('lens GL init failed:', e); }
+    } catch (e) { glOK = false; glErr = String(e); console.warn('lens GL init failed:', e); }
+  }
+
+  if (DEBUG) {
+    var badge = document.createElement('div');
+    badge.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:10000;background:#111;color:#0f0;' +
+      'font:11px monospace;padding:6px 8px;border-radius:6px;max-width:90vw;word-break:break-all;';
+    badge.textContent = 'GL:' + (glOK ? 'OK' : 'FAIL ' + glErr) + ' dpr:' + DPR + ' maxTex:' + maxTex;
+    document.body.appendChild(badge);
   }
 
   function flatFallback() {  // 폴백: 굴절 없는 평면 2D 렌즈 (렌더는 되게)
@@ -773,6 +782,7 @@
   }
 
   function hide() {
+    if (DEBUG && active) return;  // 디버그 모드에선 렌즈를 유지 (스크린샷용)
     active = false;
     clearTimeout(timer);
     timer = null;
