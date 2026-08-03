@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif&family=Montserrat:wght@600&display=swap" rel="stylesheet" />
 <style>
   :root {
     --bg: #fbfbfb;
@@ -19,6 +19,7 @@
     --gray-year: #b5b5b5;
     --gray-bar: #a1a1a1;
     --serif: "Perfectly Nineties", "Instrument Serif", "Times New Roman", serif;
+    --gilroy: Gilroy, Montserrat, "Pretendard Variable", Pretendard, sans-serif;
     --sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   }
 
@@ -73,7 +74,7 @@
   .profile {
     display: flex;
     align-items: flex-start;
-    gap: 28px;
+    gap: 24px;
     margin-bottom: 32px;
   }
 
@@ -88,19 +89,19 @@
   .intro {
     flex: 1;
     min-width: 0;
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 500;
-    line-height: 15px;
+    line-height: 17px;
   }
 
   .intro p + p { margin-top: 15px; }
 
   /* ── Life journey ── */
   h2 {
-    font-family: var(--serif);
-    font-weight: 400;
-    font-size: 20px;
-    line-height: 1;
+    font-family: var(--gilroy);
+    font-weight: 600;
+    font-size: 15px;
+    line-height: 20px;
     margin-bottom: 22px;
   }
 
@@ -112,23 +113,23 @@
     gap: 14px;
   }
 
-  .journey li + li { margin-top: 17px; }
+  .journey li + li { margin-top: 21px; }
 
   .year {
     width: 35px;
     flex-shrink: 0;
     font-size: 12px;
     font-weight: 500;
-    line-height: 16px;
+    line-height: 22px;
     color: var(--gray-year);
   }
 
   .desc {
     flex: 1;
     min-width: 0;
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 500;
-    line-height: 16px;
+    line-height: 22px;
   }
 
   .desc u,
@@ -142,7 +143,7 @@
   /* ── Contact ── */
   .contact {
     margin-top: 28px;
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 500;
     line-height: 15px;
   }
@@ -157,7 +158,8 @@
 
   /* 아주 좁은 화면(320px대)에서도 한 눈에 들어오게 살짝 축소 */
   @media (max-width: 350px) {
-    .desc, .year { font-size: 11px; }
+    .desc { font-size: 13px; }
+    .year { font-size: 11px; }
     .profile { gap: 18px; }
   }
 </style>
@@ -187,11 +189,11 @@
   <ul class="journey">
     <li>
       <span class="year">2017</span>
-      <p class="desc">디즈니를 덕질하며 SNS에 다이노필름 배포 활동을 하다가,<br />디즈니 자회사인 <u>히스토리 채널</u>에 채용제안을 받고 상경했어요</p>
+      <p class="desc">디즈니를 덕질하며 SNS에 다이노필름 배포 활동을 하다가, 디즈니 자회사인 <u>히스토리 채널</u>에 채용제안을 받고 상경했어요</p>
     </li>
     <li>
       <span class="year">2019</span>
-      <p class="desc"><u>세종여권케이스</u>를 디자인하여 펀딩을 진행했고,<br />누적 펀딩액 5억원을 달성했어요.</p>
+      <p class="desc"><u>세종여권케이스</u>를 디자인하여 펀딩을 진행했고, 누적 펀딩액 5억원을 달성했어요.</p>
     </li>
     <li>
       <span class="year">2020</span>
@@ -199,7 +201,7 @@
     </li>
     <li>
       <span class="year">2021</span>
-      <p class="desc">육군 그래픽디자이너병에 합격하여,<br />육군3사관학교에서 <u>3사TV</u> 영상 제작자로 복무했어요.</p>
+      <p class="desc">육군 그래픽디자이너병에 합격하여, 육군3사관학교에서 <u>3사TV</u> 영상 제작자로 복무했어요.</p>
     </li>
     <li>
       <span class="year">2023</span>
@@ -211,7 +213,7 @@
     </li>
     <li>
       <span class="year">2024</span>
-      <p class="desc">스레드 론칭부터 활동하며 <u>구독자 4.3만명을 달성</u>하고,<br />메타코리아 행사에 초대받은 스레드 1세대 크리에이터예요.</p>
+      <p class="desc">스레드 론칭부터 활동하며 <u>구독자 4.3만명을 달성</u>하고, 메타코리아 행사에 초대받은 스레드 1세대 크리에이터예요.</p>
     </li>
     <li>
       <span class="year">2025</span>
@@ -219,7 +221,7 @@
     </li>
     <li>
       <span class="year">2026</span>
-      <p class="desc">(주)스모어톡에서 AI 크리에이티브 디렉터로 일하며,<br /><u>실제같은 AI 이미지/영상</u> 연구를 총괄하고 있어요.</p>
+      <p class="desc">(주)스모어톡에서 AI 크리에이티브 디렉터로 일하며, <u>실제같은 AI 이미지/영상</u> 연구를 총괄하고 있어요.</p>
     </li>
   </ul>
 
