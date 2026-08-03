@@ -172,9 +172,9 @@
 
   #loupe {
     position: fixed;
-    width: 198px;
-    height: 188px;
-    border-radius: 50%;
+    width: 232px;
+    height: 150px;
+    border-radius: 62px;
     overflow: hidden;
     pointer-events: none;
     z-index: 999;
@@ -195,7 +195,7 @@
     content: "";
     position: absolute;
     inset: 0;
-    border-radius: 50%;
+    border-radius: 62px;
     box-shadow:
       inset 0 0 0 1px rgba(255, 255, 255, 0.7),
       inset 0 1px 8px rgba(255, 255, 255, 0.6),
@@ -224,6 +224,21 @@
   .lens-view .desc u {
     background: linear-gradient(transparent 18%, #ffe89a 18%, #ffe89a 92%, transparent 92%);
     text-decoration-color: #d9a400;
+  }
+
+  /* 뒷단에 숨겨둔 구간별 포트폴리오 — 렌즈로만 보임 */
+  .lens-view .journey li { position: relative; }
+
+  .lens-view .peek {
+    position: absolute;
+    left: -8px;
+    width: calc(100% + 16px);
+    height: 190px;
+    top: 50%;
+    transform: translateY(-50%);
+    object-fit: cover;
+    border-radius: 12px;
+    z-index: 1;
   }
 </style>
 </head>
@@ -295,9 +310,9 @@
 <div id="loupe"><div id="loupe-glass"><div id="loupe-inner"></div></div></div>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <filter id="lensWarp" filterUnits="userSpaceOnUse" x="0" y="0" width="198" height="188"
+  <filter id="lensWarp" filterUnits="userSpaceOnUse" x="0" y="0" width="232" height="150"
           color-interpolation-filters="sRGB">
-    <feImage id="lensWarpMap" href="" x="0" y="0" width="198" height="188"
+    <feImage id="lensWarpMap" href="" x="0" y="0" width="232" height="150"
              preserveAspectRatio="none" result="map" />
     <feDisplacementMap in="SourceGraphic" in2="map" scale="30"
                        xChannelSelector="R" yChannelSelector="G" />
@@ -323,33 +338,69 @@
   world.appendChild(page.cloneNode(true));
   inner.appendChild(world);
 
+  // 구간별 숨은 포트폴리오: assets/portfolio/<키>.jpg|png|mp4 파일이 있으면
+  // 렌즈 속 해당 연혁 구간 위에 깔림 (없는 파일은 조용히 무시)
+  var PEEK_KEYS = ['2017', '2019', '2020', '2021', '2023', '2024-1', '2024-2', '2025', '2026'];
+  world.querySelectorAll('.journey li').forEach(function (li, idx) {
+    var key = PEEK_KEYS[idx];
+    if (!key) return;
+    ['mp4', 'jpg', 'png'].forEach(function (ext) {
+      var m;
+      if (ext === 'mp4') {
+        m = document.createElement('video');
+        m.muted = true; m.loop = true; m.playsInline = true;
+        m.setAttribute('playsinline', ''); m.setAttribute('muted', '');
+      } else {
+        m = document.createElement('img');
+      }
+      m.className = 'peek';
+      m.addEventListener('error', function () { m.remove(); });
+      m.src = 'assets/portfolio/' + key + '.' + ext;
+      li.appendChild(m);
+    });
+  });
+
+  function peekVideos(play) {
+    world.querySelectorAll('video').forEach(function (v) {
+      if (play) { v.play().catch(function () {}); } else { v.pause(); }
+    });
+  }
+
   function syncWidth() { world.style.width = window.innerWidth + 'px'; }
   syncWidth();
   window.addEventListener('resize', syncWidth);
 
   // 가장자리 굴절용 변위 맵 생성: 중앙은 무변위(128,128),
-  // 림 근처만 중심 방향에서 픽셀을 끌어와 유리처럼 휘어 보이게
+  // 둥근 직사각형 테두리에서 안쪽 BAND(px) 구간만 가장자리 방향으로 휘어짐
   (function buildWarpMap() {
-    var w = 198, h = 188;
+    var w = 232, h = 150, R = 62, BAND = 26;
+
+    function sdf(px, py) {  // 중심 기준 rounded-rect signed distance (안쪽 음수)
+      var qx = Math.abs(px) - (w / 2 - R), qy = Math.abs(py) - (h / 2 - R);
+      var ax = Math.max(qx, 0), ay = Math.max(qy, 0);
+      return Math.sqrt(ax * ax + ay * ay) + Math.min(Math.max(qx, qy), 0) - R;
+    }
+
     var c = document.createElement('canvas');
     c.width = w; c.height = h;
     var g = c.getContext('2d');
     var img = g.createImageData(w, h);
     var cx = w / 2, cy = h / 2;
-    var FLAT_R = 0.68;   // 이 반경까지는 완전히 평평
     for (var y = 0; y < h; y++) {
       for (var x = 0; x < w; x++) {
-        var nx = (x - cx) / cx, ny = (y - cy) / cy;
-        var r = Math.sqrt(nx * nx + ny * ny);
+        var px = x - cx, py = y - cy;
+        var edge = -sdf(px, py);  // 테두리까지 남은 거리
         var t = 0;
-        if (r > FLAT_R) {
-          t = Math.min((r - FLAT_R) / (1 - FLAT_R), 1);
-          t = Math.pow(t, 1.7);  // 림에 붙을수록 급격히 세지는 굴절
+        if (edge < BAND) {
+          t = Math.pow(1 - Math.max(edge, 0) / BAND, 1.7);
         }
-        var ux = r ? nx / r : 0, uy = r ? ny / r : 0;
+        // 테두리 바깥 방향(법선) = SDF 기울기
+        var gx = sdf(px + 1, py) - sdf(px - 1, py);
+        var gy = sdf(px, py + 1) - sdf(px, py - 1);
+        var gl = Math.sqrt(gx * gx + gy * gy) || 1;
         var i = (y * w + x) * 4;
-        img.data[i]     = Math.round(128 - ux * t * 127);
-        img.data[i + 1] = Math.round(128 - uy * t * 127);
+        img.data[i]     = Math.round(128 - (gx / gl) * t * 127);
+        img.data[i + 1] = Math.round(128 - (gy / gl) * t * 127);
         img.data[i + 2] = 128;
         img.data[i + 3] = 255;
       }
@@ -360,7 +411,7 @@
     map.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', c.toDataURL());
   })();
 
-  var W = 198, H = 188;
+  var W = 232, H = 150;
   var timer = null, active = false, sx = 0, sy = 0;
   var ax = 0, ay = 0;  // 렌즈가 뜬 순간의 기준점 (패닝 증폭의 중심)
 
@@ -381,12 +432,13 @@
       ' scale(' + LENS_SCALE + ')';
   }
 
-  function show(x, y) { active = true; ax = x; ay = y; moveTo(x, y); loupe.classList.add('on'); }
+  function show(x, y) { active = true; ax = x; ay = y; moveTo(x, y); loupe.classList.add('on'); peekVideos(true); }
   function hide() {
     active = false;
     clearTimeout(timer);
     timer = null;
     loupe.classList.remove('on');
+    peekVideos(false);
   }
 
   function pressStart(x, y) {
