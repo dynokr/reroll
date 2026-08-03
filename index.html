@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#fbfbfb" />
+<title>jongwon, Park</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #fbfbfb;
+    --ink: #111111;
+    --gray-link: #717171;
+    --gray-ref: #6d6d6d;
+    --gray-year: #b5b5b5;
+    --gray-bar: #a1a1a1;
+    --serif: "Perfectly Nineties", "Instrument Serif", "Times New Roman", serif;
+    --sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    word-break: keep-all;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 392px;
+    margin: 0 auto;
+    padding: 20px 20px calc(24px + env(safe-area-inset-bottom));
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 26px;
+  }
+
+  h1 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: 25px;
+    line-height: 1.2;
+    letter-spacing: 0.01em;
+  }
+
+  .sns {
+    display: flex;
+    gap: 14px;
+  }
+
+  .sns a {
+    font-size: 11px;
+    line-height: 15px;
+    color: var(--gray-link);
+    text-decoration: underline;
+    text-underline-position: from-font;
+  }
+
+  /* ── Profile ── */
+  .profile {
+    display: flex;
+    align-items: flex-start;
+    gap: 28px;
+    margin-bottom: 32px;
+  }
+
+  .profile img {
+    width: 109px;
+    height: 109px;
+    border-radius: 19px;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+
+  .intro {
+    flex: 1;
+    min-width: 0;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 15px;
+  }
+
+  .intro p + p { margin-top: 15px; }
+
+  /* ── Life journey ── */
+  h2 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: 20px;
+    line-height: 1;
+    margin-bottom: 22px;
+  }
+
+  .journey { list-style: none; }
+
+  .journey li {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+  }
+
+  .journey li + li { margin-top: 17px; }
+
+  .year {
+    width: 35px;
+    flex-shrink: 0;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+    color: var(--gray-year);
+  }
+
+  .desc {
+    flex: 1;
+    min-width: 0;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+  }
+
+  .desc u,
+  .desc a {
+    color: var(--gray-ref);
+    text-decoration: underline;
+    text-underline-position: from-font;
+    text-decoration-skip-ink: none;
+  }
+
+  /* ── Contact ── */
+  .contact {
+    margin-top: 28px;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 15px;
+  }
+
+  .contact .bar {
+    color: var(--gray-bar);
+    font-weight: 300;
+    margin: 0 8px;
+  }
+
+  .contact a { color: inherit; text-decoration: none; }
+
+  /* 아주 좁은 화면(320px대)에서도 한 눈에 들어오게 살짝 축소 */
+  @media (max-width: 350px) {
+    .desc, .year { font-size: 11px; }
+    .profile { gap: 18px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <h1>jongwon,&nbsp; Park</h1>
+    <nav class="sns">
+      <a href="https://www.instagram.com/dyno.kr/" target="_blank" rel="noopener">instagram</a>
+      <a href="https://www.linkedin.com/in/jongwon-park-41a170177/" target="_blank" rel="noopener">Linkedin</a>
+      <a href="https://www.threads.com/@dyno.kr" target="_blank" rel="noopener">threads</a>
+    </nav>
+  </header>
+
+  <section class="profile">
+    <img src="assets/profile.jpg" alt="박종원 프로필 사진" />
+    <div class="intro">
+      <p>안녕하세요. 저는 한국에서 AI Creative Director로 일하고 있는 박종원입니다.</p>
+      <p>저는 온/오프라인 콘텐츠에 관련된 AI에 관심이 많고, AI를 통해 실제 같은 이미지와 영상을 구현하는 연구를 진행하고 있습니다.</p>
+    </div>
+  </section>
+
+  <h2>Life journey</h2>
+
+  <ul class="journey">
+    <li>
+      <span class="year">2017</span>
+      <p class="desc">디즈니를 덕질하며 SNS에 다이노필름 배포 활동을 하다가,<br />디즈니 자회사인 <u>히스토리 채널</u>에 채용제안을 받고 상경했어요</p>
+    </li>
+    <li>
+      <span class="year">2019</span>
+      <p class="desc"><u>세종여권케이스</u>를 디자인하여 펀딩을 진행했고,<br />누적 펀딩액 5억원을 달성했어요.</p>
+    </li>
+    <li>
+      <span class="year">2020</span>
+      <p class="desc">여권케이스 펀딩으로 번 돈을 핀뱃지 컬렉션 제작에 올인했고, <u>김연아</u>, <u>김연경</u>, <u>손흥민</u>, <u>저스틴민</u> 등의 셀럽들에게 전달됐어요.</p>
+    </li>
+    <li>
+      <span class="year">2021</span>
+      <p class="desc">육군 그래픽디자이너병에 합격하여,<br />육군3사관학교에서 <u>3사TV</u> 영상 제작자로 복무했어요.</p>
+    </li>
+    <li>
+      <span class="year">2023</span>
+      <p class="desc">성수 요식업 CCO로 합류하여, 카페, 음식점과 관련하여 <u>브랜드 기획</u>, <u>콘텐츠/인플루언서 마케팅</u>, <u>VMD</u>를 담당했어요.</p>
+    </li>
+    <li>
+      <span class="year">2024</span>
+      <p class="desc">노션 글로벌 앰버서더로 선정되어, 노션 서울 커뮤니티를 만들고, 노션코리아와 협업하여 <u>굿즈를 제작</u>했어요.</p>
+    </li>
+    <li>
+      <span class="year">2024</span>
+      <p class="desc">스레드 론칭부터 활동하며 <u>구독자 4.3만명을 달성</u>하고,<br />메타코리아 행사에 초대받은 스레드 1세대 크리에이터예요.</p>
+    </li>
+    <li>
+      <span class="year">2025</span>
+      <p class="desc"><u>귀멸의 칼날 AI 영상</u>을 통해 누적 조회수 1,500만회를 달성하고, <u>카카오 AI 앰버서더</u>로 활동했어요.</p>
+    </li>
+    <li>
+      <span class="year">2026</span>
+      <p class="desc">(주)스모어톡에서 AI 크리에이티브 디렉터로 일하며,<br /><u>실제같은 AI 이미지/영상</u> 연구를 총괄하고 있어요.</p>
+    </li>
+  </ul>
+
+  <p class="contact">Contact<span class="bar">l</span><a href="mailto:whddnjs761@gmail.com">whddnjs761@gmail.com</a></p>
+
+</div>
+</body>
+</html>
