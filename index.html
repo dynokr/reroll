@@ -162,6 +162,87 @@
     .year { font-size: 11px; }
     .profile { gap: 18px; }
   }
+
+  /* ── 꾹 누르면 나오는 리퀴드 글래스 렌즈 ── */
+  .page {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  #loupe {
+    position: fixed;
+    width: 232px;
+    height: 150px;
+    border-radius: 62px;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 999;
+    background: var(--bg);
+    box-shadow:
+      0 12px 32px rgba(0, 0, 0, 0.20),
+      0 3px 10px rgba(0, 0, 0, 0.14);
+    opacity: 0;
+    transform: scale(0.4);
+    transition: transform 0.16s cubic-bezier(0.2, 0.9, 0.3, 1.2), opacity 0.12s ease;
+    will-change: transform, left, top;
+  }
+
+  #loupe.on { opacity: 1; transform: scale(1); }
+
+  /* 유리 테두리·윤광 */
+  #loupe::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 62px;
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.7),
+      inset 0 1px 8px rgba(255, 255, 255, 0.6),
+      inset 0 -10px 16px rgba(0, 0, 0, 0.07),
+      inset 8px 0 14px rgba(0, 0, 0, 0.03),
+      inset -8px 0 14px rgba(0, 0, 0, 0.03);
+    background: linear-gradient(160deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0) 42%);
+  }
+
+  /* 가장자리 굴절: 렌즈 속 화면 전체에 변위 필터를 걸되,
+     변위 맵이 중앙은 0이라 중앙은 평평하고 림 근처만 휘어짐 */
+  #loupe-glass {
+    position: absolute;
+    inset: 0;
+    filter: url(#lensWarp);
+  }
+
+  #loupe-inner {
+    position: absolute;
+    left: 0;
+    top: 0;
+    transform-origin: 0 0;
+  }
+
+  /* 렌즈 안에서만 보이는 다른 세계: 키워드 형광펜 */
+  .lens-view .desc u {
+    background: linear-gradient(transparent 18%, #ffe89a 18%, #ffe89a 92%, transparent 92%);
+    text-decoration-color: #d9a400;
+  }
+
+  /* 구간별 숨은 포트폴리오 전용 모드: 렌즈 전체를 그 콘텐츠 하나만 채움 */
+  #loupe-media {
+    position: absolute;
+    inset: 0;
+    display: none;
+    background: var(--bg);
+    overflow: hidden;
+  }
+
+  #loupe-media .media {
+    position: absolute;
+    left: 0;
+    top: 0;
+    display: none;
+    object-fit: cover;
+    will-change: transform;
+  }
 </style>
 </head>
 <body>
@@ -228,5 +309,228 @@
   <p class="contact">Contact<span class="bar">l</span><a href="mailto:whddnjs761@gmail.com">whddnjs761@gmail.com</a></p>
 
 </div>
+
+<div id="loupe"><div id="loupe-glass"><div id="loupe-inner"></div><div id="loupe-media"></div></div></div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <filter id="lensWarp" filterUnits="userSpaceOnUse" x="0" y="0" width="232" height="150"
+          color-interpolation-filters="sRGB">
+    <feImage id="lensWarpMap" href="" x="0" y="0" width="232" height="150"
+             preserveAspectRatio="none" result="map" />
+    <feDisplacementMap in="SourceGraphic" in2="map" scale="30"
+                       xChannelSelector="R" yChannelSelector="G" />
+  </filter>
+</svg>
+
+<script>
+(function () {
+  var LENS_SCALE = 1.5;
+  var HOLD_MS = 380;       // 이 시간 이상 누르고 있어야 렌즈 등장
+  var MOVE_CANCEL = 12;    // 등장 전 이만큼 움직이면 스크롤로 간주하고 취소
+  var LIFT = 26;           // 손가락 위로 렌즈를 띄우는 간격
+  var PAN_GAIN = 3;        // 손가락 이동량 대비 렌즈 속 시점 이동 배율
+
+  var loupe = document.getElementById('loupe');
+  var inner = document.getElementById('loupe-inner');
+  var page = document.querySelector('.page');
+
+  // 렌즈 속 세계: 페이지 복제본 (여기만 바꾸면 렌즈에 다른 내용이 보임)
+  var world = document.createElement('div');
+  world.className = 'lens-view';
+  world.style.background = '#fbfbfb';
+  world.appendChild(page.cloneNode(true));
+  inner.appendChild(world);
+
+  // 구간별 숨은 포트폴리오: assets/portfolio/<키>.jpg|png|mp4 가 있으면
+  // 그 구간을 눌렀을 때 렌즈 전체에 "그 콘텐츠만" 뜸 (없는 파일은 조용히 무시)
+  var PEEK_KEYS = ['2017', '2019', '2020', '2021', '2023', '2024-1', '2024-2', '2025', '2026'];
+  var mediaBox = document.getElementById('loupe-media');
+  var MEDIA = {};  // key → 로드 성공한 img/video 엘리먼트
+
+  PEEK_KEYS.forEach(function (key) {
+    ['mp4', 'jpg', 'png'].forEach(function (ext) {
+      var m;
+      if (ext === 'mp4') {
+        m = document.createElement('video');
+        m.muted = true; m.loop = true; m.playsInline = true;
+        m.setAttribute('playsinline', ''); m.setAttribute('muted', '');
+        m.addEventListener('loadeddata', function () { if (!MEDIA[key]) MEDIA[key] = m; });
+      } else {
+        m = document.createElement('img');
+        m.addEventListener('load', function () { if (!MEDIA[key]) MEDIA[key] = m; });
+      }
+      m.className = 'media';
+      m.addEventListener('error', function () { m.remove(); });
+      m.src = 'assets/portfolio/' + key + '.' + ext;
+      mediaBox.appendChild(m);
+    });
+  });
+
+  function syncWidth() { world.style.width = window.innerWidth + 'px'; }
+  syncWidth();
+  window.addEventListener('resize', syncWidth);
+
+  // 가장자리 굴절용 변위 맵 생성: 중앙은 무변위(128,128),
+  // 둥근 직사각형 테두리에서 안쪽 BAND(px) 구간만 가장자리 방향으로 휘어짐
+  (function buildWarpMap() {
+    var w = 232, h = 150, R = 62, BAND = 26;
+
+    function sdf(px, py) {  // 중심 기준 rounded-rect signed distance (안쪽 음수)
+      var qx = Math.abs(px) - (w / 2 - R), qy = Math.abs(py) - (h / 2 - R);
+      var ax = Math.max(qx, 0), ay = Math.max(qy, 0);
+      return Math.sqrt(ax * ax + ay * ay) + Math.min(Math.max(qx, qy), 0) - R;
+    }
+
+    var c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    var g = c.getContext('2d');
+    var img = g.createImageData(w, h);
+    var cx = w / 2, cy = h / 2;
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        var px = x - cx, py = y - cy;
+        var edge = -sdf(px, py);  // 테두리까지 남은 거리
+        var t = 0;
+        if (edge < BAND) {
+          t = Math.pow(1 - Math.max(edge, 0) / BAND, 1.7);
+        }
+        // 테두리 바깥 방향(법선) = SDF 기울기
+        var gx = sdf(px + 1, py) - sdf(px - 1, py);
+        var gy = sdf(px, py + 1) - sdf(px, py - 1);
+        var gl = Math.sqrt(gx * gx + gy * gy) || 1;
+        var i = (y * w + x) * 4;
+        img.data[i]     = Math.round(128 - (gx / gl) * t * 127);
+        img.data[i + 1] = Math.round(128 - (gy / gl) * t * 127);
+        img.data[i + 2] = 128;
+        img.data[i + 3] = 255;
+      }
+    }
+    g.putImageData(img, 0, 0);
+    var map = document.getElementById('lensWarpMap');
+    map.setAttribute('href', c.toDataURL());
+    map.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', c.toDataURL());
+  })();
+
+  var W = 232, H = 150;
+  var MEDIA_ZOOM = 2;  // 미디어 모드에서 콘텐츠가 렌즈의 몇 배 크기로 깔릴지
+  var timer = null, active = false, sx = 0, sy = 0;
+  var ax = 0, ay = 0;       // 렌즈가 뜬 순간의 기준점 (패닝 증폭의 중심)
+  var curMedia = null;      // 현재 미디어 모드에서 보여주는 엘리먼트 (null = 텍스트 확대 모드)
+
+  function placeLoupe(x, y) {
+    var lx = Math.min(Math.max(x - W / 2, 4), window.innerWidth - W - 4);
+    var ly = Math.max(y - H - LIFT, 4);
+    loupe.style.left = lx + 'px';
+    loupe.style.top = ly + 'px';
+  }
+
+  function moveTo(x, y) {
+    placeLoupe(x, y);
+
+    if (curMedia) {
+      // 미디어 모드: 렌즈에는 이 콘텐츠 하나만. 패닝은 콘텐츠 안에서만(경계 클램프)
+      var bw = W * MEDIA_ZOOM, bh = H * MEDIA_ZOOM;
+      var mx = (W - bw) / 2 - (x - ax) * PAN_GAIN;
+      var my = (H - bh) / 2 - (y - ay) * PAN_GAIN;
+      mx = Math.min(Math.max(mx, W - bw), 0);
+      my = Math.min(Math.max(my, H - bh), 0);
+      curMedia.style.width = bw + 'px';
+      curMedia.style.height = bh + 'px';
+      curMedia.style.transform = 'translate(' + mx + 'px,' + my + 'px)';
+      return;
+    }
+
+    // 텍스트 확대 모드: 기준점에서 벗어난 만큼 증폭해서 시점 이동
+    var cx = ax + (x - ax) * PAN_GAIN;
+    var cyDoc = (ay + window.scrollY) + (y - ay) * PAN_GAIN;
+    cx = Math.min(Math.max(cx, 0), window.innerWidth);
+    cyDoc = Math.min(Math.max(cyDoc, 0), world.offsetHeight);
+    inner.style.transform =
+      'translate(' + (W / 2 - cx * LENS_SCALE) + 'px,' +
+                     (H / 2 - cyDoc * LENS_SCALE) + 'px)' +
+      ' scale(' + LENS_SCALE + ')';
+  }
+
+  function mediaAt(x, y) {
+    // 밑줄 키워드(u) 위를 눌렀을 때만 그 구간의 미디어 (손가락 오차 감안 살짝 여유)
+    var SLOP_X = 8, SLOP_Y = 10;
+    var lis = document.querySelectorAll('.page .journey li');
+    for (var i = 0; i < lis.length; i++) {
+      var us = lis[i].querySelectorAll('u');
+      for (var j = 0; j < us.length; j++) {
+        var r = us[j].getBoundingClientRect();
+        if (x >= r.left - SLOP_X && x <= r.right + SLOP_X &&
+            y >= r.top - SLOP_Y && y <= r.bottom + SLOP_Y) {
+          return MEDIA[PEEK_KEYS[i]] || null;
+        }
+      }
+    }
+    return null;
+  }
+
+  function show(x, y) {
+    active = true; ax = x; ay = y;
+    curMedia = mediaAt(x, y);
+    mediaBox.style.display = curMedia ? 'block' : 'none';
+    inner.style.display = curMedia ? 'none' : 'block';
+    if (curMedia) {
+      curMedia.style.display = 'block';
+      if (curMedia.tagName === 'VIDEO') { curMedia.currentTime = 0; curMedia.play().catch(function () {}); }
+    }
+    moveTo(x, y);
+    loupe.classList.add('on');
+  }
+
+  function hide() {
+    active = false;
+    clearTimeout(timer);
+    timer = null;
+    loupe.classList.remove('on');
+    if (curMedia) {
+      if (curMedia.tagName === 'VIDEO') curMedia.pause();
+      curMedia.style.display = 'none';
+      curMedia = null;
+    }
+  }
+
+  function pressStart(x, y) {
+    sx = x; sy = y;
+    clearTimeout(timer);
+    timer = setTimeout(function () { show(sx, sy); }, HOLD_MS);
+  }
+
+  function pressMove(x, y, e) {
+    if (active) {
+      if (e) e.preventDefault();  // 렌즈 사용 중엔 스크롤 잠금
+      moveTo(x, y);
+    } else if (timer && Math.hypot(x - sx, y - sy) > MOVE_CANCEL) {
+      hide();
+    } else { sx = x; sy = y; }
+  }
+
+  document.addEventListener('touchstart', function (e) {
+    if (e.touches.length !== 1) return hide();
+    var t = e.touches[0];
+    pressStart(t.clientX, t.clientY);
+  }, { passive: true });
+
+  document.addEventListener('touchmove', function (e) {
+    var t = e.touches[0];
+    pressMove(t.clientX, t.clientY, e);
+  }, { passive: false });
+
+  document.addEventListener('touchend', hide);
+  document.addEventListener('touchcancel', hide);
+
+  // 데스크톱에서도 확인할 수 있게 마우스 지원
+  document.addEventListener('mousedown', function (e) { pressStart(e.clientX, e.clientY); });
+  document.addEventListener('mousemove', function (e) { if (timer || active) pressMove(e.clientX, e.clientY, e); });
+  document.addEventListener('mouseup', hide);
+
+  document.addEventListener('contextmenu', function (e) {
+    if (active) e.preventDefault();
+  });
+})();
+</script>
 </body>
 </html>
