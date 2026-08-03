@@ -452,12 +452,20 @@
   }
 
   function mediaAt(x, y) {
-    // 누른 지점이 몇 번째 연혁 구간인지 → 그 구간의 미디어 (없으면 null)
-    var el = document.elementFromPoint(x, y);
-    var li = el && el.closest ? el.closest('.page .journey li') : null;
-    if (!li) return null;
-    var idx = Array.prototype.indexOf.call(document.querySelectorAll('.page .journey li'), li);
-    return MEDIA[PEEK_KEYS[idx]] || null;
+    // 밑줄 키워드(u) 위를 눌렀을 때만 그 구간의 미디어 (손가락 오차 감안 살짝 여유)
+    var SLOP_X = 8, SLOP_Y = 10;
+    var lis = document.querySelectorAll('.page .journey li');
+    for (var i = 0; i < lis.length; i++) {
+      var us = lis[i].querySelectorAll('u');
+      for (var j = 0; j < us.length; j++) {
+        var r = us[j].getBoundingClientRect();
+        if (x >= r.left - SLOP_X && x <= r.right + SLOP_X &&
+            y >= r.top - SLOP_Y && y <= r.bottom + SLOP_Y) {
+          return MEDIA[PEEK_KEYS[i]] || null;
+        }
+      }
+    }
+    return null;
   }
 
   function show(x, y) {
