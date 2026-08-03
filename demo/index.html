@@ -163,7 +163,7 @@
     .profile { gap: 18px; }
   }
 
-  /* ── 꾹 누르면 나오는 리퀴드 글래스 렌즈 ── */
+  /* ── 꾹 누르면 나오는 리퀴드 글래스 렌즈 (WebGL 굴절·색수차) ── */
   .page {
     -webkit-user-select: none;
     user-select: none;
@@ -175,10 +175,8 @@
     width: 232px;
     height: 150px;
     border-radius: 62px;
-    overflow: hidden;
     pointer-events: none;
     z-index: 999;
-    background: var(--bg);
     box-shadow:
       0 12px 32px rgba(0, 0, 0, 0.20),
       0 3px 10px rgba(0, 0, 0, 0.14);
@@ -190,22 +188,23 @@
 
   #loupe.on { opacity: 1; transform: scale(1); }
 
-  /* iOS: 비디오가 border-radius 클리핑을 뚫고 나오는 버그 대응 —
-     내부 클리핑 레이어에 마스크(JS에서 둥근사각 알파 마스크 주입) + 명시적 쌓임 순서.
-     그림자는 #loupe(마스크 없음)에 남겨서 잘리지 않게 함 */
+  /* 내부 클리핑 레이어: iOS에서 비디오/캔버스가 radius를 뚫지 못하게 마스크로 강제 */
   #loupe-clip {
     position: absolute;
     inset: 0;
     border-radius: 62px;
     overflow: hidden;
-    isolation: isolate;
+    background: var(--bg);
     -webkit-mask-size: 100% 100%;
     mask-size: 100% 100%;
   }
-  #loupe-glass { z-index: 1; }
-  #glass-rim { z-index: 2; }
-  #prism { z-index: 3; }
-  #loupe::after { z-index: 4; }
+
+  #lens-gl {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
 
   /* 유리 테두리·윤광 */
   #loupe::after {
@@ -222,88 +221,15 @@
     background: linear-gradient(160deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0) 42%);
   }
 
-  #loupe-glass {
-    position: absolute;
-    inset: 0;
-  }
-
-  /* 가장자리 굴절(전 브라우저): 같은 콘텐츠를 1.12배로 키운 복제 레이어를
-     림 밴드에만 마스크로 보여줌 → 테두리 근처 콘텐츠가 유리처럼 바깥으로 휘어 보임 */
-  #glass-rim {
-    position: absolute;
-    inset: 0;
+  /* 렌즈 텍스처 소스(비디오/이미지): 화면 밖에 살아있어야 iOS가 프레임을 디코드함 */
+  .texsrc {
+    position: fixed;
+    left: -9999px;
+    top: 0;
+    width: 64px;
+    height: 36px;
+    opacity: 0.01;
     pointer-events: none;
-    filter: blur(1px) saturate(1.12);
-    -webkit-mask-size: 100% 100%;
-    mask-size: 100% 100%;
-  }
-
-  #rim-zoom {
-    position: absolute;
-    inset: 0;
-    transform: scale(1.12);
-  }
-
-  #rim-inner {
-    position: absolute;
-    left: 0;
-    top: 0;
-    transform-origin: 0 0;
-  }
-
-  #rim-canvas {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    display: none;
-  }
-
-  /* 애플 리퀴드 글래스 특유의 무지개빛 프리즘 링 */
-  #prism {
-    position: absolute;
-    inset: 0;
-    border-radius: 62px;
-    pointer-events: none;
-    background: conic-gradient(from 210deg,
-      #ffb3b3, #ffe0a3, #b8ffc4, #a8dcff, #c9b3ff, #ffb3ea, #ffb3b3);
-    mix-blend-mode: multiply;
-    filter: blur(2.5px) saturate(1.6);
-    opacity: 0.6;
-    -webkit-mask-size: 100% 100%;
-    mask-size: 100% 100%;
-  }
-
-  #loupe-inner {
-    position: absolute;
-    left: 0;
-    top: 0;
-    transform-origin: 0 0;
-  }
-
-  /* 렌즈 안에서만 보이는 다른 세계: 키워드 형광펜 */
-  .lens-view .desc u {
-    background: linear-gradient(transparent 18%, #ffe89a 18%, #ffe89a 92%, transparent 92%);
-    text-decoration-color: #d9a400;
-  }
-
-  /* 구간별 숨은 포트폴리오 전용 모드: 렌즈 전체를 그 콘텐츠 하나만 채움 */
-  #loupe-media {
-    position: absolute;
-    inset: 0;
-    display: none;
-    background: var(--bg);
-    overflow: hidden;
-  }
-
-  #loupe-media .media {
-    position: absolute;
-    left: 0;
-    top: 0;
-    display: none;
-    object-fit: cover;
-    will-change: transform;
   }
 </style>
 </head>
@@ -373,172 +299,364 @@
 </div>
 
 <div id="loupe">
-  <div id="loupe-clip">
-    <div id="loupe-glass"><div id="loupe-inner"></div><div id="loupe-media"></div></div>
-    <div id="glass-rim"><div id="rim-zoom"><div id="rim-inner"></div><canvas id="rim-canvas"></canvas></div></div>
-    <div id="prism"></div>
-  </div>
+  <div id="loupe-clip"><canvas id="lens-gl"></canvas></div>
 </div>
 
 <script>
 (function () {
-  var LENS_SCALE = 1.5;
-  var HOLD_MS = 380;       // 이 시간 이상 누르고 있어야 렌즈 등장
-  var MOVE_CANCEL = 12;    // 등장 전 이만큼 움직이면 스크롤로 간주하고 취소
-  var LIFT = 26;           // 손가락 위로 렌즈를 띄우는 간격
-  var PAN_GAIN = 3;        // 손가락 이동량 대비 렌즈 속 시점 이동 배율
+  // ── 조절 상수 ──
+  var LENS_SCALE = 1.5;   // 텍스트 확대율
+  var HOLD_MS = 380;      // 렌즈 등장까지 누르는 시간
+  var MOVE_CANCEL = 12;   // 등장 전 이만큼 움직이면 스크롤로 간주
+  var LIFT = 26;          // 손가락 위로 렌즈를 띄우는 간격
+  var PAN_GAIN = 3;       // 손가락 이동 대비 시점 이동 배율
+  var MEDIA_ZOOM = 2;     // 미디어가 렌즈의 몇 배 크기로 깔릴지
+  var W = 232, H = 150, R = 62;
+  var DPR = Math.min(window.devicePixelRatio || 1, 3);
+  var WARP_BAND = 36;     // 림에서 안쪽으로 굴절이 생기는 폭(px)
+  var WARP_GAMMA = 1.6;   // 림에 가까울수록 굴절이 세지는 곡선
+  var WARP_K = 0.42;      // 최대 굴절 강도
+  var CHROMA = 0.12;      // 채널별 굴절률 차이(색수차 강도)
 
   var loupe = document.getElementById('loupe');
-  var inner = document.getElementById('loupe-inner');
+  var clipEl = document.getElementById('loupe-clip');
+  var glCanvas = document.getElementById('lens-gl');
   var page = document.querySelector('.page');
 
-  // 렌즈 속 세계: 페이지 복제본 (여기만 바꾸면 렌즈에 다른 내용이 보임)
-  var world = document.createElement('div');
-  world.className = 'lens-view';
-  world.style.background = '#fbfbfb';
-  world.appendChild(page.cloneNode(true));
-  inner.appendChild(world);
+  // ── 렌즈 모양 SDF & 클리핑 마스크 (iOS 비디오/캔버스 radius 탈출 방지) ──
+  function roundedRectSdf(px, py, w, h, r) {
+    var qx = Math.abs(px) - (w / 2 - r), qy = Math.abs(py) - (h / 2 - r);
+    var axx = Math.max(qx, 0), ayy = Math.max(qy, 0);
+    return Math.sqrt(axx * axx + ayy * ayy) + Math.min(Math.max(qx, qy), 0) - r;
+  }
 
-  // 구간별 숨은 포트폴리오: assets/portfolio/<키>.jpg|png|mp4 가 있으면
-  // 그 구간을 눌렀을 때 렌즈 전체에 "그 콘텐츠만" 뜸 (없는 파일은 조용히 무시)
+  (function applyClipMask() {
+    var c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    var g = c.getContext('2d');
+    var img = g.createImageData(W, H);
+    for (var y = 0; y < H; y++) {
+      for (var x = 0; x < W; x++) {
+        var edge = -roundedRectSdf(x - W / 2 + 0.5, y - H / 2 + 0.5, W, H, R);
+        var a = Math.min(Math.max(edge + 0.5, 0), 1);
+        var i = (y * W + x) * 4;
+        img.data[i] = img.data[i + 1] = img.data[i + 2] = 255;
+        img.data[i + 3] = Math.round(a * 255);
+      }
+    }
+    g.putImageData(img, 0, 0);
+    var u = 'url(' + c.toDataURL() + ')';
+    clipEl.style.webkitMaskImage = u;
+    clipEl.style.maskImage = u;
+  })();
+
+  // ── 구간별 숨은 포트폴리오 (렌즈 텍스처 소스, 화면 밖) ──
+  // 존재하는 파일만 명시(불필요한 404 요청·디코더 압박 제거)
   var PEEK_KEYS = ['2017', '2019', '2020', '2021', '2023', '2024-1', '2024-2', '2025', '2026'];
-  var mediaBox = document.getElementById('loupe-media');
-  // key → {v: 비디오, i: 이미지}. 비디오는 즉시 등록(iOS는 화면 밖 비디오를
-  // 미리 로드하지 않아 loadeddata가 안 오므로), 실패하면 error에서 해제
+  var MANIFEST = {
+    '2017': 'mp4', '2019': 'mp4', '2020': 'mp4', '2021': 'mp4', '2023': 'mp4',
+    '2024-1': 'jpg', '2024-2': 'jpg', '2025': 'mp4', '2026': 'mp4'
+  };
   var MEDIA = {};
 
   PEEK_KEYS.forEach(function (key) {
-    MEDIA[key] = { v: null, i: null };
-    ['mp4', 'jpg', 'png'].forEach(function (ext) {
-      var m;
-      if (ext === 'mp4') {
-        m = document.createElement('video');
-        m.muted = true; m.loop = true; m.playsInline = true;
-        m.preload = 'auto';
-        m.setAttribute('playsinline', ''); m.setAttribute('muted', '');
-        MEDIA[key].v = m;
-        m.addEventListener('error', function () { if (MEDIA[key].v === m) MEDIA[key].v = null; m.remove(); });
-      } else {
-        m = document.createElement('img');
-        m.addEventListener('load', function () { if (!MEDIA[key].i) MEDIA[key].i = m; });
-        m.addEventListener('error', function () { if (MEDIA[key].i === m) MEDIA[key].i = null; m.remove(); });
-      }
-      m.className = 'media';
-      m.src = 'assets/portfolio/' + key + '.' + ext;
-      mediaBox.appendChild(m);
-    });
+    var ext = MANIFEST[key];
+    if (!ext) return;
+    var m;
+    if (ext === 'mp4') {
+      m = document.createElement('video');
+      m.muted = true; m.loop = true; m.playsInline = true;
+      m.preload = 'metadata';
+      m.setAttribute('playsinline', ''); m.setAttribute('muted', '');
+    } else {
+      m = document.createElement('img');
+    }
+    m.addEventListener('error', function () { if (MEDIA[key] === m) delete MEDIA[key]; m.remove(); });
+    m.className = 'texsrc';
+    m.src = 'assets/portfolio/' + key + '.' + ext;
+    document.body.appendChild(m);
+    MEDIA[key] = m;
   });
 
-  function pickMedia(key) {
-    var e = MEDIA[key];
-    return e ? (e.v || e.i) : null;
+  function pickMedia(key) { return MEDIA[key] || null; }
+
+  function mediaReady(m) {
+    return m.tagName === 'VIDEO'
+      ? (m.readyState >= 2 && m.videoWidth > 0)
+      : (m.complete && m.naturalWidth > 0);
   }
 
-  // iOS: 첫 터치(제스처) 때 비디오 로드를 한 번 킥해서 프리로드를 살림
   var primed = false;
-  function primeVideos() {
+  function primeVideos() {  // iOS: 첫 제스처에서 비디오 프리로드 킥
     if (primed) return;
     primed = true;
     PEEK_KEYS.forEach(function (key) {
-      if (MEDIA[key].v) { try { MEDIA[key].v.load(); } catch (e) {} }
+      var m = MEDIA[key];
+      if (m && m.tagName === 'VIDEO') { try { m.load(); } catch (e) {} }
     });
   }
 
-  function syncWidth() {
-    world.style.width = window.innerWidth + 'px';
-    if (rimWorld) rimWorld.style.width = window.innerWidth + 'px';
-  }
-  syncWidth();
-  window.addEventListener('resize', syncWidth);
+  // ── 페이지 래스터화: 렌즈 텍스트 모드용 텍스처 (DOM을 캔버스에 그대로 그림) ──
+  var pageCanvas = null, pageScale = 2, pageW = 0, pageH = 0, pageTexDirty = true;
+  var metricsCache = {};
 
-  // 림 마스크 생성: 둥근 직사각형 테두리에서 안쪽으로 band(px)만 보이는 알파 링.
-  // SVG 필터는 iOS 사파리가 안 그려줘서, 마스크+복제 레이어 방식으로 전 브라우저 대응
-  function roundedRectSdf(px, py, w, h, R) {  // 중심 기준, 안쪽 음수
-    var qx = Math.abs(px) - (w / 2 - R), qy = Math.abs(py) - (h / 2 - R);
-    var ax = Math.max(qx, 0), ay = Math.max(qy, 0);
-    return Math.sqrt(ax * ax + ay * ay) + Math.min(Math.max(qx, qy), 0) - R;
+  function fontOf(cs) {
+    return cs.fontStyle + ' ' + cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily;
   }
 
-  function ringMask(band, gamma) {
-    var w = 232, h = 150, R = 62;
-    var c = document.createElement('canvas');
-    c.width = w; c.height = h;
+  function metricsFor(ctx, font, sizePx) {
+    if (!metricsCache[font]) {
+      ctx.font = font;
+      var m = ctx.measureText('한Ag');
+      metricsCache[font] = {
+        asc: m.actualBoundingBoxAscent || sizePx * 0.8,
+        desc: m.actualBoundingBoxDescent || sizePx * 0.2
+      };
+    }
+    return metricsCache[font];
+  }
+
+  function roundedPath(g, x, y, w, h, r) {
+    g.beginPath();
+    g.moveTo(x + r, y);
+    g.arcTo(x + w, y, x + w, y + h, r);
+    g.arcTo(x + w, y + h, x, y + h, r);
+    g.arcTo(x, y + h, x + w, y, r);
+    g.arcTo(x, y, x + w, y, r);
+    g.closePath();
+  }
+
+  function rasterizePage() {
+    var docH = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+    pageW = window.innerWidth;
+    pageH = docH;
+    var texCap = Math.min(4096, maxTex);  // 기기별 GL 최대 텍스처 크기 반영
+    pageScale = Math.min(2, texCap / docH, texCap / pageW);
+    var c = pageCanvas || document.createElement('canvas');
+    c.width = Math.round(pageW * pageScale);
+    c.height = Math.round(docH * pageScale);
     var g = c.getContext('2d');
-    var img = g.createImageData(w, h);
-    for (var y = 0; y < h; y++) {
-      for (var x = 0; x < w; x++) {
-        var edge = -roundedRectSdf(x - w / 2 + 0.5, y - h / 2 + 0.5, w, h, R);
-        var a = 0;
-        if (edge > 0 && edge < band) a = Math.pow(1 - edge / band, gamma);
-        else if (edge <= 0) a = 1;  // 테두리 바깥은 border-radius 클리핑에 맡김
-        var i = (y * w + x) * 4;
-        img.data[i] = img.data[i + 1] = img.data[i + 2] = 255;
-        img.data[i + 3] = Math.round(a * 255);
+    g.setTransform(pageScale, 0, 0, pageScale, 0, 0);
+    g.fillStyle = '#fbfbfb';
+    g.fillRect(0, 0, pageW, docH);
+
+    var offX = window.scrollX, offY = window.scrollY;
+
+    // 프로필 사진 (둥근 모서리)
+    var img = page.querySelector('.profile img');
+    if (img && img.complete && img.naturalWidth) {
+      var ir = img.getBoundingClientRect();
+      g.save();
+      roundedPath(g, ir.left + offX, ir.top + offY, ir.width, ir.height, 19);
+      g.clip();
+      g.drawImage(img, ir.left + offX, ir.top + offY, ir.width, ir.height);
+      g.restore();
+    }
+
+    // 텍스트: 글자 단위로 실제 위치에 그대로 그림
+    var walker = document.createTreeWalker(page, NodeFilter.SHOW_TEXT, null);
+    var range = document.createRange();
+    var node;
+    while ((node = walker.nextNode())) {
+      var text = node.textContent;
+      if (!text.trim()) continue;
+      var parent = node.parentElement;
+      if (!parent) continue;
+      var cs = getComputedStyle(parent);
+      if (cs.visibility === 'hidden' || cs.display === 'none') continue;
+      var font = fontOf(cs);
+      var sizePx = parseFloat(cs.fontSize) || 14;
+      var fm = metricsFor(g, font, sizePx);
+      var underline = cs.textDecorationLine.indexOf('underline') >= 0;
+      var inDescU = !!parent.closest('u') && !!parent.closest('.desc');
+      var deco = cs.textDecorationColor;
+      for (var i = 0; i < text.length; i++) {
+        var ch = text[i];
+        if (ch === '\n' || ch === '\u200B') continue;
+        var isSpace = ch.trim() === '';
+        range.setStart(node, i);
+        range.setEnd(node, i + 1);
+        var r = range.getBoundingClientRect();
+        if (!r || !r.width) continue;
+        var gx = r.left + offX, gy = r.top + offY;
+        var baseline = gy + (r.height - (fm.asc + fm.desc)) / 2 + fm.asc;
+        if (inDescU) {  // 렌즈에서만 보이는 형광펜은 래스터에 직접 굽는다
+          g.fillStyle = '#ffe89a';
+          g.fillRect(gx - 0.5, gy + r.height * 0.22, r.width + 1, r.height * 0.62);
+        }
+        if (!isSpace) {
+          g.font = font;
+          g.fillStyle = cs.color;
+          g.fillText(ch, gx, baseline);
+        }
+        if (underline) {  // 공백 위도 밑줄은 이어지게
+          g.strokeStyle = (deco && deco !== 'auto') ? deco : cs.color;
+          g.lineWidth = 1;
+          g.beginPath();
+          g.moveTo(gx, baseline + fm.desc + 1);
+          g.lineTo(gx + r.width, baseline + fm.desc + 1);
+          g.stroke();
+        }
       }
     }
-    g.putImageData(img, 0, 0);
-    return 'url(' + c.toDataURL() + ')';
+    pageCanvas = c;
+    pageTexDirty = true;
+    if (active) render();  // 렌즈 사용 중 리사이즈/회전 시 즉시 새 텍스처로 갱신
   }
 
-  function shapeMask() {  // 렌즈 전체 둥근사각 알파 마스크 (iOS 비디오 클리핑 강제용)
-    var w = 232, h = 150, R = 62;
-    var c = document.createElement('canvas');
-    c.width = w; c.height = h;
-    var g = c.getContext('2d');
-    var img = g.createImageData(w, h);
-    for (var y = 0; y < h; y++) {
-      for (var x = 0; x < w; x++) {
-        var edge = -roundedRectSdf(x - w / 2 + 0.5, y - h / 2 + 0.5, w, h, R);
-        var a = Math.min(Math.max(edge + 0.5, 0), 1);  // 경계 1px 안티앨리어싱
-        var i = (y * w + x) * 4;
-        img.data[i] = img.data[i + 1] = img.data[i + 2] = 255;
-        img.data[i + 3] = Math.round(a * 255);
+  var rasterQueued = false;
+  function queueRaster() {
+    if (rasterQueued) return;
+    rasterQueued = true;
+    setTimeout(function () { rasterQueued = false; rasterizePage(); }, 120);
+  }
+
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(queueRaster);
+  }
+  window.addEventListener('load', queueRaster);
+  window.addEventListener('resize', queueRaster);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', queueRaster);
+  queueRaster();
+
+  // ── WebGL 렌즈: 림 SDF 굴절 + 채널별 굴절률 차이(진짜 색수차) ──
+  glCanvas.width = W * DPR;
+  glCanvas.height = H * DPR;
+  var gl = glCanvas.getContext('webgl', { premultipliedAlpha: true }) ||
+           glCanvas.getContext('experimental-webgl');
+  var glOK = false, prog = null, uni = {}, texPage = null, texMedia = null;
+  var maxTex = 4096;
+  var ctx2d = null;  // WebGL 불가 시 폴백 (굴절 없는 평면 렌즈)
+
+  function compile(type, src) {
+    var s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw gl.getShaderInfoLog(s);
+    return s;
+  }
+
+  if (gl) {
+    try {
+      var vs = compile(gl.VERTEX_SHADER, [
+        'attribute vec2 aPos;',
+        'varying vec2 vPx;',
+        'uniform vec2 uLens;',
+        'void main() {',
+        '  vec2 t = aPos * 0.5 + 0.5;',
+        '  vPx = vec2(t.x, 1.0 - t.y) * uLens;',  // 렌즈 픽셀좌표 (좌상단 원점)
+        '  gl_Position = vec4(aPos, 0.0, 1.0);',
+        '}'
+      ].join('\n'));
+
+      var fs = compile(gl.FRAGMENT_SHADER, [
+        'precision mediump float;',
+        'varying vec2 vPx;',
+        'uniform sampler2D uTex;',
+        'uniform vec2 uTexSize;',
+        'uniform vec2 uCenter;',   // 렌즈 중앙이 보여줄 텍스처 px
+        'uniform float uScale;',   // 렌즈 1px 당 텍스처 px
+        'uniform vec2 uLens;',
+        'uniform float uR;',
+        'uniform float uBand;',
+        'uniform float uGamma;',
+        'uniform float uK;',
+        'uniform float uChroma;',
+        'float sdf(vec2 p) {',
+        '  vec2 q = abs(p) - (uLens * 0.5 - vec2(uR));',
+        '  return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - uR;',
+        '}',
+        'void main() {',
+        '  vec2 d = vPx - uLens * 0.5;',
+        '  float edge = -sdf(d);',                       // 림까지 남은 거리
+        '  float t = 0.0;',
+        '  if (edge < uBand) t = pow(1.0 - clamp(edge, 0.0, uBand) / uBand, uGamma);',
+        '  float kR = uK * (1.0 - uChroma);',            // 채널별 굴절률: R < G < B
+        '  float kG = uK;',
+        '  float kB = uK * (1.0 + uChroma);',
+        '  vec2 uvR = clamp((uCenter + d * (1.0 - kR * t) * uScale) / uTexSize, 0.0, 1.0);',
+        '  vec2 uvG = clamp((uCenter + d * (1.0 - kG * t) * uScale) / uTexSize, 0.0, 1.0);',
+        '  vec2 uvB = clamp((uCenter + d * (1.0 - kB * t) * uScale) / uTexSize, 0.0, 1.0);',
+        '  gl_FragColor = vec4(texture2D(uTex, uvR).r, texture2D(uTex, uvG).g, texture2D(uTex, uvB).b, 1.0);',
+        '}'
+      ].join('\n'));
+
+      prog = gl.createProgram();
+      gl.attachShader(prog, vs);
+      gl.attachShader(prog, fs);
+      gl.linkProgram(prog);
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw gl.getProgramInfoLog(prog);
+      gl.useProgram(prog);
+
+      var buf = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+      var loc = gl.getAttribLocation(prog, 'aPos');
+      gl.enableVertexAttribArray(loc);
+      gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+
+      ['uTex', 'uTexSize', 'uCenter', 'uScale', 'uLens', 'uR', 'uBand', 'uGamma', 'uK', 'uChroma']
+        .forEach(function (n) { uni[n] = gl.getUniformLocation(prog, n); });
+
+      gl.viewport(0, 0, W * DPR, H * DPR);
+      gl.uniform2f(uni.uLens, W, H);
+      gl.uniform1f(uni.uR, R);
+      gl.uniform1f(uni.uBand, WARP_BAND);
+      gl.uniform1f(uni.uGamma, WARP_GAMMA);
+      gl.uniform1f(uni.uK, WARP_K);
+      gl.uniform1f(uni.uChroma, CHROMA);
+      gl.uniform1i(uni.uTex, 0);
+
+      function makeTex() {
+        var t = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, t);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        return t;
       }
-    }
-    g.putImageData(img, 0, 0);
-    return 'url(' + c.toDataURL() + ')';
+      texPage = makeTex();
+      texMedia = makeTex();
+      maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE) || 4096;
+      glOK = true;
+    } catch (e) { glOK = false; console.warn('lens GL init failed:', e); }
   }
 
-  var rimEl = document.getElementById('glass-rim');
-  var prismEl = document.getElementById('prism');
-  var refrMask = ringMask(30, 1.3);   // 굴절 밴드: 림에서 30px
-  var prismMask = ringMask(9, 1.0);   // 프리즘 링: 림에서 9px
-  var clipMask = shapeMask();
-  var clipEl = document.getElementById('loupe-clip');
-  rimEl.style.webkitMaskImage = refrMask; rimEl.style.maskImage = refrMask;
-  prismEl.style.webkitMaskImage = prismMask; prismEl.style.maskImage = prismMask;
-  clipEl.style.webkitMaskImage = clipMask; clipEl.style.maskImage = clipMask;
-
-  // 굴절 레이어용 콘텐츠 복제 (텍스트 모드)
-  var rimInner = document.getElementById('rim-inner');
-  var rimWorld = document.createElement('div');
-  rimWorld.className = 'lens-view';
-  rimWorld.style.background = '#fbfbfb';
-  rimWorld.appendChild(page.cloneNode(true));
-  rimInner.appendChild(rimWorld);
-  syncWidth();
-
-  // 굴절 레이어용 캔버스 (미디어 모드: 비디오/이미지를 매 프레임 미러링)
-  var rimCanvas = document.getElementById('rim-canvas');
-  rimCanvas.width = 232 * 2; rimCanvas.height = 150 * 2;
-  var rimCtx = rimCanvas.getContext('2d');
-  rimCtx.scale(2, 2);
-  var mediaGeom = { mx: 0, my: 0, bw: 0, bh: 0 };
-  var rafId = null;
-
-  function drawRim() {
-    rafId = null;
-    if (!active || !curMedia) return;
-    rimCtx.clearRect(0, 0, 232, 150);
-    try { rimCtx.drawImage(curMedia, mediaGeom.mx, mediaGeom.my, mediaGeom.bw, mediaGeom.bh); } catch (e) {}
-    rafId = requestAnimationFrame(drawRim);
+  function flatFallback() {  // 폴백: 굴절 없는 평면 2D 렌즈 (렌더는 되게)
+    // 주의: 이미 webgl 컨텍스트가 잡힌 캔버스에선 2d를 못 얻으므로 새 캔버스로 교체
+    if (ctx2d) return;
+    var flat = document.createElement('canvas');
+    flat.id = 'lens-gl';
+    flat.width = W * DPR; flat.height = H * DPR;
+    glCanvas.parentNode.replaceChild(flat, glCanvas);
+    glCanvas = flat;
+    ctx2d = flat.getContext('2d');
+    ctx2d.scale(DPR, DPR);
   }
 
-  var W = 232, H = 150;
-  var MEDIA_ZOOM = 2;  // 미디어 모드에서 콘텐츠가 렌즈의 몇 배 크기로 깔릴지
+  if (!glOK) flatFallback();
+
+  if (gl) {  // iOS 메모리 압박으로 GL 컨텍스트가 날아가면 평면 렌즈로 강등
+    glCanvas.addEventListener('webglcontextlost', function (ev) {
+      ev.preventDefault();
+      glOK = false;
+      flatFallback();
+    }, false);
+  }
+
+  function uploadTex(tex, src) {
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
+  }
+
+  // ── 렌즈 상태 ──
   var timer = null, active = false, sx = 0, sy = 0;
-  var ax = 0, ay = 0;       // 렌즈가 뜬 순간의 기준점 (패닝 증폭의 중심)
-  var curMedia = null;      // 현재 미디어 모드에서 보여주는 엘리먼트 (null = 텍스트 확대 모드)
+  var ax = 0, ay = 0;
+  var curMedia = null;
+  var view = { center: [0, 0], scale: 1, texSize: [1, 1] };
+  var rafId = null;
 
   function placeLoupe(x, y) {
     var lx = Math.min(Math.max(x - W / 2, 4), window.innerWidth - W - 4);
@@ -547,37 +665,86 @@
     loupe.style.top = ly + 'px';
   }
 
+  function mediaSize(m) {
+    return m.tagName === 'VIDEO'
+      ? [m.videoWidth || 1, m.videoHeight || 1]
+      : [m.naturalWidth || 1, m.naturalHeight || 1];
+  }
+
+  var lastX = 0, lastY = 0, lastUploaded = null;
+
   function moveTo(x, y) {
     placeLoupe(x, y);
+    lastX = x; lastY = y;
+    render();
+  }
 
-    if (curMedia) {
-      // 미디어 모드: 렌즈에는 이 콘텐츠 하나만. 패닝은 콘텐츠 안에서만(경계 클램프)
+  function computeView(media) {
+    if (media) {
+      // 미디어 모드: cover 크롭 + 패닝(콘텐츠 경계 클램프)
+      var vs = mediaSize(media), vw = vs[0], vh = vs[1];
       var bw = W * MEDIA_ZOOM, bh = H * MEDIA_ZOOM;
-      var mx = (W - bw) / 2 - (x - ax) * PAN_GAIN;
-      var my = (H - bh) / 2 - (y - ay) * PAN_GAIN;
+      var s0 = Math.max(bw / vw, bh / vh);
+      var mx = (W - bw) / 2 - (lastX - ax) * PAN_GAIN;
+      var my = (H - bh) / 2 - (lastY - ay) * PAN_GAIN;
       mx = Math.min(Math.max(mx, W - bw), 0);
       my = Math.min(Math.max(my, H - bh), 0);
-      curMedia.style.width = bw + 'px';
-      curMedia.style.height = bh + 'px';
-      curMedia.style.transform = 'translate(' + mx + 'px,' + my + 'px)';
-      mediaGeom.mx = mx; mediaGeom.my = my; mediaGeom.bw = bw; mediaGeom.bh = bh;
-      return;
+      var bcx = W / 2 - mx, bcy = H / 2 - my;  // 렌즈 중앙의 박스 좌표
+      view.center = [(bcx - bw / 2) / s0 + vw / 2, (bcy - bh / 2) / s0 + vh / 2];
+      view.scale = 1 / s0;
+      view.texSize = [vw, vh];
+    } else {
+      // 텍스트 모드: 패닝 증폭 + 문서 경계 클램프
+      var cx = ax + (lastX - ax) * PAN_GAIN;
+      var cyDoc = (ay + window.scrollY) + (lastY - ay) * PAN_GAIN;
+      cx = Math.min(Math.max(cx, 0), pageW);
+      cyDoc = Math.min(Math.max(cyDoc, 0), pageH);
+      view.center = [cx * pageScale, cyDoc * pageScale];
+      view.scale = pageScale / LENS_SCALE;
+      view.texSize = [pageW * pageScale, pageH * pageScale];
     }
+  }
 
-    // 텍스트 확대 모드: 기준점에서 벗어난 만큼 증폭해서 시점 이동
-    var cx = ax + (x - ax) * PAN_GAIN;
-    var cyDoc = (ay + window.scrollY) + (y - ay) * PAN_GAIN;
-    cx = Math.min(Math.max(cx, 0), window.innerWidth);
-    cyDoc = Math.min(Math.max(cyDoc, 0), world.offsetHeight);
-    var tf = 'translate(' + (W / 2 - cx * LENS_SCALE) + 'px,' +
-                            (H / 2 - cyDoc * LENS_SCALE) + 'px)' +
-             ' scale(' + LENS_SCALE + ')';
-    inner.style.transform = tf;
-    rimInner.style.transform = tf;  // 굴절 레이어도 같은 시점 (줌은 rim-zoom이 처리)
+  function render() {
+    if (!active) return;
+    // 비디오가 아직 프레임을 못 주면(iOS 지연 로드·저전력 모드) 텍스트 뷰를 그리다가
+    // 프레임이 준비되는 순간 미디어로 전환 — 검은 렌즈 방지
+    var eff = (curMedia && mediaReady(curMedia)) ? curMedia : null;
+    computeView(eff);
+    if (glOK) {
+      if (eff) {
+        var isVideo = eff.tagName === 'VIDEO';
+        if (isVideo || lastUploaded !== eff) { uploadTex(texMedia, eff); lastUploaded = eff; }
+        else gl.bindTexture(gl.TEXTURE_2D, texMedia);
+      } else if (pageCanvas) {
+        gl.bindTexture(gl.TEXTURE_2D, texPage);
+        if (pageTexDirty) { uploadTex(texPage, pageCanvas); pageTexDirty = false; }
+      } else { return; }
+      gl.uniform2f(uni.uTexSize, view.texSize[0], view.texSize[1]);
+      gl.uniform2f(uni.uCenter, view.center[0], view.center[1]);
+      gl.uniform1f(uni.uScale, view.scale);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    } else if (ctx2d) {
+      ctx2d.fillStyle = '#fbfbfb';
+      ctx2d.fillRect(0, 0, W, H);
+      var src = eff || pageCanvas;
+      if (!src) return;
+      var sw = W * view.scale, sh = H * view.scale;
+      try {
+        ctx2d.drawImage(src, view.center[0] - sw / 2, view.center[1] - sh / 2, sw, sh, 0, 0, W, H);
+      } catch (e) {}
+    }
+  }
+
+  function tick() {
+    rafId = null;
+    if (!active) return;
+    render();  // 비디오 프레임 갱신 반영
+    rafId = requestAnimationFrame(tick);
   }
 
   function mediaAt(x, y) {
-    // 밑줄 키워드(u) 위를 눌렀을 때만 그 구간의 미디어 (손가락 오차 감안 살짝 여유)
+    // 밑줄 키워드(u) 위를 눌렀을 때만 그 구간의 미디어 (손가락 오차 슬롭 포함)
     var SLOP_X = 8, SLOP_Y = 10;
     var lis = document.querySelectorAll('.page .journey li');
     for (var i = 0; i < lis.length; i++) {
@@ -596,20 +763,13 @@
   function show(x, y) {
     active = true; ax = x; ay = y;
     curMedia = mediaAt(x, y);
-    mediaBox.style.display = curMedia ? 'block' : 'none';
-    inner.style.display = curMedia ? 'none' : 'block';
-    rimInner.style.display = curMedia ? 'none' : 'block';
-    rimCanvas.style.display = curMedia ? 'block' : 'none';
-    if (curMedia) {
-      curMedia.style.display = 'block';
-      if (curMedia.tagName === 'VIDEO') {
-        try { curMedia.currentTime = 0; } catch (e) {}
-        curMedia.play().catch(function () {});
-      }
-      if (!rafId) rafId = requestAnimationFrame(drawRim);
+    if (curMedia && curMedia.tagName === 'VIDEO') {
+      try { curMedia.currentTime = 0; } catch (e) {}
+      curMedia.play().catch(function () {});
     }
     moveTo(x, y);
     loupe.classList.add('on');
+    if (!rafId) rafId = requestAnimationFrame(tick);
   }
 
   function hide() {
@@ -620,13 +780,14 @@
     if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
     if (curMedia) {
       if (curMedia.tagName === 'VIDEO') curMedia.pause();
-      curMedia.style.display = 'none';
       curMedia = null;
     }
   }
 
+  var ox = 0, oy = 0;  // 누른 원점 (취소 판정은 항상 원점 기준 — 누적 드리프트 방지)
+
   function pressStart(x, y) {
-    sx = x; sy = y;
+    sx = x; sy = y; ox = x; oy = y;
     clearTimeout(timer);
     timer = setTimeout(function () { show(sx, sy); }, HOLD_MS);
   }
@@ -635,13 +796,13 @@
     if (active) {
       if (e) e.preventDefault();  // 렌즈 사용 중엔 스크롤 잠금
       moveTo(x, y);
-    } else if (timer && Math.hypot(x - sx, y - sy) > MOVE_CANCEL) {
+    } else if (timer && Math.hypot(x - ox, y - oy) > MOVE_CANCEL) {
       hide();
     } else { sx = x; sy = y; }
   }
 
   document.addEventListener('touchstart', function (e) {
-    primeVideos();  // 첫 제스처에서 iOS 비디오 프리로드 활성화
+    primeVideos();
     if (e.touches.length !== 1) return hide();
     var t = e.touches[0];
     pressStart(t.clientX, t.clientY);
@@ -655,7 +816,7 @@
   document.addEventListener('touchend', hide);
   document.addEventListener('touchcancel', hide);
 
-  // 데스크톱에서도 확인할 수 있게 마우스 지원
+  // 데스크톱 마우스 지원
   document.addEventListener('mousedown', function (e) { pressStart(e.clientX, e.clientY); });
   document.addEventListener('mousemove', function (e) { if (timer || active) pressMove(e.clientX, e.clientY, e); });
   document.addEventListener('mouseup', hide);
