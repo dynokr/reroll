@@ -205,6 +205,14 @@
     background: linear-gradient(160deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0) 42%);
   }
 
+  /* 가장자리 굴절: 렌즈 속 화면 전체에 변위 필터를 걸되,
+     변위 맵이 중앙은 0이라 중앙은 평평하고 림 근처만 휘어짐 */
+  #loupe-glass {
+    position: absolute;
+    inset: 0;
+    filter: url(#lensWarp);
+  }
+
   #loupe-inner {
     position: absolute;
     left: 0;
@@ -284,7 +292,17 @@
 
 </div>
 
-<div id="loupe"><div id="loupe-inner"></div></div>
+<div id="loupe"><div id="loupe-glass"><div id="loupe-inner"></div></div></div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <filter id="lensWarp" filterUnits="userSpaceOnUse" x="0" y="0" width="198" height="188"
+          color-interpolation-filters="sRGB">
+    <feImage id="lensWarpMap" href="" x="0" y="0" width="198" height="188"
+             preserveAspectRatio="none" result="map" />
+    <feDisplacementMap in="SourceGraphic" in2="map" scale="30"
+                       xChannelSelector="R" yChannelSelector="G" />
+  </filter>
+</svg>
 
 <script>
 (function () {
@@ -308,6 +326,39 @@
   function syncWidth() { world.style.width = window.innerWidth + 'px'; }
   syncWidth();
   window.addEventListener('resize', syncWidth);
+
+  // 가장자리 굴절용 변위 맵 생성: 중앙은 무변위(128,128),
+  // 림 근처만 중심 방향에서 픽셀을 끌어와 유리처럼 휘어 보이게
+  (function buildWarpMap() {
+    var w = 198, h = 188;
+    var c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    var g = c.getContext('2d');
+    var img = g.createImageData(w, h);
+    var cx = w / 2, cy = h / 2;
+    var FLAT_R = 0.68;   // 이 반경까지는 완전히 평평
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        var nx = (x - cx) / cx, ny = (y - cy) / cy;
+        var r = Math.sqrt(nx * nx + ny * ny);
+        var t = 0;
+        if (r > FLAT_R) {
+          t = Math.min((r - FLAT_R) / (1 - FLAT_R), 1);
+          t = Math.pow(t, 1.7);  // 림에 붙을수록 급격히 세지는 굴절
+        }
+        var ux = r ? nx / r : 0, uy = r ? ny / r : 0;
+        var i = (y * w + x) * 4;
+        img.data[i]     = Math.round(128 - ux * t * 127);
+        img.data[i + 1] = Math.round(128 - uy * t * 127);
+        img.data[i + 2] = 128;
+        img.data[i + 3] = 255;
+      }
+    }
+    g.putImageData(img, 0, 0);
+    var map = document.getElementById('lensWarpMap');
+    map.setAttribute('href', c.toDataURL());
+    map.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', c.toDataURL());
+  })();
 
   var W = 198, H = 188;
   var timer = null, active = false, sx = 0, sy = 0;
