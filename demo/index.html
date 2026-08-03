@@ -550,13 +550,18 @@
         '}'
       ].join('\n'));
 
+      // iOS WebKit은 VS/FS 간 공유 uniform의 정밀도가 다르면 링크를 거부한다 →
+      // 프래그먼트도 highp로 통일 (모든 아이폰 GPU가 fragment highp 지원)
       var fs = compile(gl.FRAGMENT_SHADER, [
+        '#ifdef GL_FRAGMENT_PRECISION_HIGH',
+        'precision highp float;',
+        '#else',
         'precision mediump float;',
+        '#endif',
         'varying vec2 vPx;',
         'uniform sampler2D uTex;',
-        'uniform vec2 uTexSize;',
-        'uniform vec2 uCenter;',   // 렌즈 중앙이 보여줄 텍스처 px
-        'uniform float uScale;',   // 렌즈 1px 당 텍스처 px
+        'uniform vec2 uCenterUV;',  // 렌즈 중앙의 텍스처 UV (0~1로 정규화해 정밀도 확보)
+        'uniform vec2 uScaleUV;',   // 렌즈 1px 당 UV 증가량 (축별)
         'uniform vec2 uLens;',
         'uniform float uR;',
         'uniform float uBand;',
@@ -575,9 +580,9 @@
         '  float kR = uK * (1.0 - uChroma);',            // 채널별 굴절률: R < G < B
         '  float kG = uK;',
         '  float kB = uK * (1.0 + uChroma);',
-        '  vec2 uvR = clamp((uCenter + d * (1.0 - kR * t) * uScale) / uTexSize, 0.0, 1.0);',
-        '  vec2 uvG = clamp((uCenter + d * (1.0 - kG * t) * uScale) / uTexSize, 0.0, 1.0);',
-        '  vec2 uvB = clamp((uCenter + d * (1.0 - kB * t) * uScale) / uTexSize, 0.0, 1.0);',
+        '  vec2 uvR = clamp(uCenterUV + d * (1.0 - kR * t) * uScaleUV, 0.0, 1.0);',
+        '  vec2 uvG = clamp(uCenterUV + d * (1.0 - kG * t) * uScaleUV, 0.0, 1.0);',
+        '  vec2 uvB = clamp(uCenterUV + d * (1.0 - kB * t) * uScaleUV, 0.0, 1.0);',
         '  gl_FragColor = vec4(texture2D(uTex, uvR).r, texture2D(uTex, uvG).g, texture2D(uTex, uvB).b, 1.0);',
         '}'
       ].join('\n'));
@@ -596,7 +601,7 @@
       gl.enableVertexAttribArray(loc);
       gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
 
-      ['uTex', 'uTexSize', 'uCenter', 'uScale', 'uLens', 'uR', 'uBand', 'uGamma', 'uK', 'uChroma']
+      ['uTex', 'uCenterUV', 'uScaleUV', 'uLens', 'uR', 'uBand', 'uGamma', 'uK', 'uChroma']
         .forEach(function (n) { uni[n] = gl.getUniformLocation(prog, n); });
 
       gl.viewport(0, 0, W * DPR, H * DPR);
@@ -729,9 +734,8 @@
         gl.bindTexture(gl.TEXTURE_2D, texPage);
         if (pageTexDirty) { uploadTex(texPage, pageCanvas); pageTexDirty = false; }
       } else { return; }
-      gl.uniform2f(uni.uTexSize, view.texSize[0], view.texSize[1]);
-      gl.uniform2f(uni.uCenter, view.center[0], view.center[1]);
-      gl.uniform1f(uni.uScale, view.scale);
+      gl.uniform2f(uni.uCenterUV, view.center[0] / view.texSize[0], view.center[1] / view.texSize[1]);
+      gl.uniform2f(uni.uScaleUV, view.scale / view.texSize[0], view.scale / view.texSize[1]);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     } else if (ctx2d) {
       ctx2d.fillStyle = '#fbfbfb';
