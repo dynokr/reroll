@@ -37,13 +37,18 @@
 
 /* ─────────────────────────────────────────────
    Tokens
+
+   화면 전체를 Figma 프레임(390×844)을 그대로 축소/확대한 캔버스로 다룬다.
+   --k 는 "디자인 1px" 의 실제 길이. 가로·세로가 같은 배율이라
+   디자인의 간격 비율이 어떤 기기에서도 그대로 유지된다.
+   상태바(0~44)는 웹에 없고 실제 콘텐츠는 y=750 에서 끝나므로 세로 기준은 706.
    ───────────────────────────────────────────── */
 :root {
   color-scheme: dark;
 
-  /* 디자인 기준 폭 390px → 실제 컬럼 폭에 맞춘 스케일 계수 */
   --colw: min(100vw, 430px);
-  --s: calc(var(--colw) / 390);
+  --k: min(calc(var(--colw) / 390), calc(100vh / 706));
+  --k: min(calc(var(--colw) / 390), calc(100svh / 706));
 
   --bg: #000000;
   --white: #ffffff;
@@ -56,17 +61,20 @@
   --sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   --display: "Kakao Big Sans", var(--sans);
 
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+
   /* transitions.dev — number pop-in (p9) */
   --pop-dur: 500ms;
-  --pop-distance: 8px;
   --pop-blur: 2px;
   --pop-ease: cubic-bezier(0.34, 1.45, 0.64, 1);
   --pop-dir: 1; /* 1 = 아래에서 위로, -1 = 위에서 아래로 */
 
-  /* transitions.dev — streaming text (p30) */
-  --stream-dur: 350ms;
+  /* transitions.dev — streaming text (p30) — 요청대로 조금 더 빠르게 */
+  --stream-dur: 260ms;
   --stream-blur: 1px;
-  --stream-ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* 대주제 타이틀 / 목록이 위로 흘러 지나가는 모션 */
+  --flow-dur: 540ms;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -83,34 +91,50 @@ body {
 img, video { display: block; max-width: 100%; }
 button { font: inherit; color: inherit; background: none; border: 0; }
 
-/* 중앙 정렬된 모바일 폭 컬럼 */
-.col {
-  width: var(--colw);
-  margin-inline: auto;
-  position: relative;
-  height: 100%;
+/* 디자인 캔버스 — 390×844 를 그대로 옮긴 좌표계 */
+.frame {
+  position: absolute;
+  left: 50%;
+  margin-left: calc(-195 * var(--k));
+  top: calc(-44 * var(--k) + (100vh - 706 * var(--k)) / 2);
+  top: calc(-44 * var(--k) + (100svh - 706 * var(--k)) / 2);
+  width: calc(390 * var(--k));
+  height: calc(844 * var(--k));
+}
+
+main { position: relative; }
+section { position: relative; }
+
+.stage {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  height: 100svh;
+  overflow: hidden;
 }
 
 /* ─────────────────────────────────────────────
-   사운드 토글 (고정)
+   고정 오버레이 — 사운드 · 로고 · 날짜
    ───────────────────────────────────────────── */
-#sound {
+.overlay {
   position: fixed;
-  z-index: 100;
-  top: calc(env(safe-area-inset-top, 0px) + 22px);
-  left: 50%;
-  margin-left: calc(var(--colw) / -2 + 35 * var(--s));
-  width: calc(20 * var(--s));
-  height: calc(20 * var(--s));
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: opacity 250ms cubic-bezier(0.22, 1, 0.36, 1);
+  inset: 0;
+  z-index: 90;
+  pointer-events: none;
 }
-#sound::before { /* 히트 영역 확장 */
-  content: "";
+
+#sound {
   position: absolute;
-  inset: -14px;
+  left: calc(35 * var(--k));
+  top: calc(64 * var(--k));
+  width: calc(20 * var(--k));
+  height: calc(20 * var(--k));
+  cursor: pointer;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 250ms var(--ease);
 }
+#sound::before { content: ""; position: absolute; inset: calc(-14 * var(--k)); }
 #sound img { width: 100%; height: 100%; }
 #sound .slash {
   position: absolute;
@@ -125,94 +149,74 @@ button { font: inherit; color: inherit; background: none; border: 0; }
   stroke-linecap: round;
   stroke-dasharray: 23;
   stroke-dashoffset: 23;
-  transition: stroke-dashoffset 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: stroke-dashoffset 320ms var(--ease);
 }
 #sound[aria-pressed="false"] { opacity: 0.45; }
 #sound[aria-pressed="false"] .slash line { stroke-dashoffset: 0; }
 
-/* ─────────────────────────────────────────────
-   섹션 공통
-   ───────────────────────────────────────────── */
-main { position: relative; }
-section { position: relative; }
-
-.stage {
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  height: 100svh;
+/* 메인 로고 — 히어로에서 크게 재생되다 스크롤하면 그대로 상단에 도킹.
+   title.mp4(608×1080) 안의 글자 영역 x41~566 / y438~556 만 잘라 쓴다.
+   도킹 상태 = Figma 2페이지 로고(글자 폭 177, 중심 194.5/73)
+   히어로 상태 = Figma 1페이지 로고(글자 폭 324.4, 중심 195/374) */
+#logo {
+  --cw: calc(187 * var(--k));
+  --e: 0;
+  position: absolute;
+  left: calc(101 * var(--k));
+  top: calc(52 * var(--k));
+  width: var(--cw);
+  height: calc(var(--cw) / 4.4492);
   overflow: hidden;
+  transform-origin: center center;
+  transform:
+    translate(calc(0.5 * (1 - var(--e)) * var(--k)),
+              calc(300.98 * (1 - var(--e)) * var(--k)))
+    scale(calc(1 + 0.8328 * (1 - var(--e))));
+  will-change: transform, opacity;
+}
+#logo video {
+  position: absolute;
+  max-width: none;
+  width: calc(var(--cw) * 1.15810);
+  height: calc(var(--cw) * 2.05714);
+  left: calc(var(--cw) * -0.078095);
+  top: calc(var(--cw) * -0.834286);
+  object-fit: fill;
+}
+
+.hero-date {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(438 * var(--k));
+  text-align: center;
+  font-size: calc(15 * var(--k));
+  line-height: 1.2;
+  font-weight: 400;
+  color: var(--white);
 }
 
 /* ─────────────────────────────────────────────
    1 ─ Hero
    ───────────────────────────────────────────── */
-#hero {
-  height: 100vh;
-  height: 100svh;
-}
+#hero { height: 100vh; height: 100svh; }
 
-/* 메인 로고 — 히어로에서 크게 재생되다가 스크롤하면 그대로 상단에 도킹.
-   title.mp4 안의 DNA26 글자 영역만 잘라 쓴다.
-   (영상 608×1080 기준 글자 박스 x 41~566 / y 438~556 → 비율 4.4492) */
-#logo {
-  --cw: calc(0.5064 * var(--colw)); /* 도킹(상단) 상태의 크롭 박스 폭 */
-  position: fixed;
-  z-index: 90;
-  left: 50%;
-  top: 0;
-  width: var(--cw);
-  height: calc(var(--cw) / 4.4492);
-  overflow: hidden;
-  transform-origin: center center;
-  will-change: transform, opacity;
-  pointer-events: none;
-}
-#logo video {
-  position: absolute;
-  max-width: none;
-  width: calc(var(--cw) * 1.1581);
-  height: calc(var(--cw) * 2.0572);
-  left: calc(var(--cw) * -0.07805);
-  top: calc(var(--cw) * -0.8344);
-  object-fit: fill;
-}
-
-.hero-date {
-  position: fixed;
-  z-index: 90;
-  left: 0;
-  right: 0;
-  top: 44.5%;
-  transform: translateY(-50%);
-  margin-top: calc(71 * var(--s));
-  text-align: center;
-  font-size: calc(15 * var(--s));
-  font-weight: 400;
-  color: var(--white);
-  pointer-events: none;
-}
-
-/* 스크롤 힌트 */
 .hint {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 30px);
+  top: calc(720 * var(--k));
   display: flex;
   justify-content: center;
-  align-items: flex-end;
-  height: 28px;
-  pointer-events: none;
   transition: opacity 400ms ease;
 }
 .hint i {
   display: block;
   width: 1px;
-  height: 28px;
+  height: calc(28 * var(--k));
   background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.55));
   transform-origin: bottom;
-  animation: hint 2.6s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  animation: hint 2.6s var(--ease) infinite;
 }
 @keyframes hint {
   0%   { transform: scaleY(0); opacity: 0; }
@@ -227,10 +231,10 @@ section { position: relative; }
    ───────────────────────────────────────────── */
 #stats { height: calc(100svh + 7 * 62svh); }
 
-/* 왼쪽 세로선 */
+/* 왼쪽 세로선 (Figma x=16) */
 .rail {
   position: absolute;
-  left: calc(16 * var(--s));
+  left: calc(16 * var(--k));
   top: 0;
   bottom: 0;
   width: 1px;
@@ -238,122 +242,126 @@ section { position: relative; }
 }
 .rail-lit {
   position: absolute;
-  left: calc(16 * var(--s));
-  top: 24.2%;
-  height: 10.7%;
+  left: calc(16 * var(--k));
+  top: calc(204 * var(--k));
+  height: calc(90 * var(--k));
   width: 1px;
   background: var(--white);
 }
+/* Polygon 1 — 회전 후 실제 크기 6×13.86, x 17~23, 세로 중심 249 */
 .rail-mark {
   position: absolute;
-  left: calc(14 * var(--s));
-  top: 28.6%;
-  margin-top: calc(4 * var(--s));
+  left: calc(17 * var(--k));
+  top: calc(242.07 * var(--k));
   width: 0;
   height: 0;
-  border-left: calc(8 * var(--s)) solid var(--white);
-  border-top: calc(4 * var(--s)) solid transparent;
-  border-bottom: calc(4 * var(--s)) solid transparent;
+  border-left: calc(6 * var(--k)) solid var(--white);
+  border-top: calc(6.93 * var(--k)) solid transparent;
+  border-bottom: calc(6.93 * var(--k)) solid transparent;
 }
 
-/* 활성 대주제 */
+/* 활성 대주제 — 스텝이 바뀌면 위로 올라가며 사라진다 */
 .stat-title {
   position: absolute;
-  top: 28.6%;
-  /* Figma 텍스트 박스가 x=34~146 → 목록과 같은 좌측 기준.
-     제목이 길어져도 잘리지 않도록 오른쪽으로 흐르게 둔다. */
-  left: calc(34 * var(--s));
-  right: calc(18 * var(--s));
-  font-size: calc(15 * var(--s));
+  left: calc(34 * var(--k));
+  top: calc(241 * var(--k));
+  right: calc(14 * var(--k));
+  height: calc(20 * var(--k));
+}
+.title-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  white-space: nowrap;
+  font-size: calc(15 * var(--k));
   font-weight: 500;
   line-height: 1.2;
   color: var(--white);
-  white-space: nowrap;
-  transition: opacity 260ms var(--stream-ease), filter 260ms var(--stream-ease);
+  will-change: transform, opacity, filter;
 }
-.stat-title.is-swapping { opacity: 0; filter: blur(2px); }
+.title-layer.is-cur { animation: flow-in var(--flow-dur) var(--ease) both; }
+.title-layer.is-ghost { animation: flow-out var(--flow-dur) var(--ease) both; }
 
-/* 숫자 + 단위 */
-.stat-value {
+@keyframes flow-in {
+  0%   { transform: translateY(calc(18 * var(--k))); opacity: 0; filter: blur(2px); }
+  100% { transform: translateY(0); opacity: 1; filter: blur(0); }
+}
+@keyframes flow-out {
+  0%   { transform: translateY(0); opacity: 1; filter: blur(0); }
+  100% { transform: translateY(calc(-18 * var(--k))); opacity: 0; filter: blur(2px); }
+}
+
+/* 숫자 (오른쪽 끝 342) + 단위 (오른쪽 끝 367) */
+.stat-num {
   position: absolute;
-  top: 32.7%;
-  right: calc(23 * var(--s));
-  left: calc(16 * var(--s));
-  display: flex;
-  justify-content: flex-end;
-  align-items: baseline;
-  gap: calc(2 * var(--s));
-  transform-origin: right center;
+  right: calc(48 * var(--k));
+  top: calc(276 * var(--k));
+  font-family: var(--display);
+  font-weight: 400;
+  color: var(--white);
+  white-space: nowrap;
+  transform-origin: right top;
+}
+.stat-unit {
+  position: absolute;
+  right: calc(23 * var(--k));
+  top: calc(302 * var(--k));
   font-family: var(--display);
   font-weight: 400;
   color: var(--white);
   white-space: nowrap;
 }
-.num-stack { position: relative; display: inline-block; }
 .num-layer {
   display: inline-block;
-  font-size: calc(50 * var(--s));
+  font-size: calc(50 * var(--k));
   line-height: 1.15;
   font-variant-numeric: tabular-nums;
 }
-.num-layer.is-ghost {
-  position: absolute;
-  right: 0;
-  top: 0;
-  pointer-events: none;
-}
-.unit-stack {
-  position: relative;
-  display: inline-block;
-  min-width: calc(25 * var(--s));
-}
 .unit-layer {
   display: inline-block;
-  font-size: calc(25 * var(--s));
+  font-size: calc(25 * var(--k));
   line-height: 1.15;
 }
-.unit-layer.is-ghost { position: absolute; left: 0; top: 0; pointer-events: none; }
+.num-layer.is-ghost { position: absolute; right: 0; top: 0; pointer-events: none; }
+.unit-layer.is-ghost { position: absolute; right: 0; top: 0; pointer-events: none; }
 
-.ch {
-  display: inline-block;
-  will-change: transform, opacity, filter;
-}
+.ch { display: inline-block; will-change: transform, opacity, filter; }
 .is-cur .ch { animation: pop-in var(--pop-dur) var(--pop-ease) both; }
 .is-ghost .ch { animation: pop-out var(--pop-dur) var(--pop-ease) both; }
 
 @keyframes pop-in {
-  0%   { transform: translateY(calc(var(--pop-distance) * var(--pop-dir))); opacity: 0; filter: blur(var(--pop-blur)); }
+  0%   { transform: translateY(calc(8 * var(--k) * var(--pop-dir))); opacity: 0; filter: blur(var(--pop-blur)); }
   100% { transform: translateY(0); opacity: 1; filter: blur(0); }
 }
 @keyframes pop-out {
   0%   { transform: translateY(0); opacity: 1; filter: blur(0); }
-  100% { transform: translateY(calc(var(--pop-distance) * var(--pop-dir) * -1)); opacity: 0; filter: blur(var(--pop-blur)); }
+  100% { transform: translateY(calc(-8 * var(--k) * var(--pop-dir))); opacity: 0; filter: blur(var(--pop-blur)); }
 }
 
 /* 대주제 목록 — 스텝마다 한 칸씩 위로 흘러 지나감 */
 .roster-wrap {
   position: absolute;
-  top: 47.5%;
-  bottom: 5%;
-  left: calc(34 * var(--s));
-  width: calc(240 * var(--s));
+  left: calc(34 * var(--k));
+  top: calc(401 * var(--k));
+  width: calc(340 * var(--k));
+  height: calc(340 * var(--k));
   overflow: hidden;
   -webkit-mask-image: linear-gradient(to bottom,
-      transparent 0, #000 calc(22 * var(--s)),
-      #000 calc(100% - 46 * var(--s)), transparent 100%);
+      transparent 0, #000 calc(24 * var(--k)),
+      #000 calc(100% - 52 * var(--k)), transparent 100%);
   mask-image: linear-gradient(to bottom,
-      transparent 0, #000 calc(22 * var(--s)),
-      #000 calc(100% - 46 * var(--s)), transparent 100%);
+      transparent 0, #000 calc(24 * var(--k)),
+      #000 calc(100% - 52 * var(--k)), transparent 100%);
 }
 .roster {
   display: flex;
   flex-direction: column;
-  gap: calc(34 * var(--s));
-  font-size: calc(11 * var(--s));
+  gap: calc(34 * var(--k));
+  font-size: calc(13 * var(--k));
   font-weight: 400;
   line-height: 1.2;
   will-change: transform;
-  transition: transform 560ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform var(--flow-dur) var(--ease);
 }
 .roster li {
   list-style: none;
@@ -367,19 +375,17 @@ section { position: relative; }
 #cards { height: calc(100svh + 6 * 130svh); }
 
 .card {
-  position: absolute;
-  inset: 0;
   opacity: 0;
   visibility: hidden;
   will-change: opacity;
 }
+/* 카드마다 Figma 좌표 그대로: --mx --my --mw --mh */
 .card-media {
   position: absolute;
-  top: var(--mt);
-  left: 50%;
-  transform: translateX(-50%);
-  width: calc(var(--mw) * var(--s));
-  aspect-ratio: var(--ar);
+  left: calc(var(--mx) * var(--k));
+  top: calc(var(--my) * var(--k));
+  width: calc(var(--mw) * var(--k));
+  height: calc(var(--mh) * var(--k));
   overflow: hidden;
   background: #000;
 }
@@ -388,45 +394,46 @@ section { position: relative; }
   height: 100%;
   object-fit: cover;
 }
-.card-copy {
-  position: absolute;
-  top: 52.8%;
-  left: calc(44 * var(--s));
-  width: calc(302 * var(--s));
-}
 .card-head {
+  position: absolute;
+  left: calc(44 * var(--k));
+  top: calc(446 * var(--k));
   display: flex;
   align-items: flex-start;
-  gap: calc(3 * var(--s));
+  gap: calc(2 * var(--k));
 }
 .card-head h2 {
   font-family: var(--display);
   font-weight: 700;
-  font-size: calc(25 * var(--s));
+  font-size: calc(25 * var(--k));
   line-height: 1.2;
   color: var(--white);
   white-space: nowrap;
 }
 .card-head .year {
-  font-size: calc(12 * var(--s));
+  font-size: calc(12 * var(--k));
   font-weight: 300;
   line-height: 1.1;
   color: var(--white);
   white-space: nowrap;
 }
 .card-body {
-  margin-top: calc(20 * var(--s));
-  font-size: calc(14 * var(--s));
+  position: absolute;
+  left: calc(44 * var(--k));
+  top: calc(503 * var(--k));
+  width: calc(302 * var(--k));
+  font-size: calc(14 * var(--k));
   font-weight: 400;
-  line-height: 1.29;
+  line-height: calc(18 * var(--k));
   color: var(--body);
 }
 .card-num {
   position: absolute;
-  top: 84.2%;
-  right: calc(56 * var(--s));
-  font-size: calc(14 * var(--s));
+  right: calc(56 * var(--k));
+  top: calc(711 * var(--k));
+  font-size: calc(14 * var(--k));
   font-weight: 500;
+  line-height: 1.2;
   letter-spacing: 0.01em;
   color: var(--page-num);
 }
@@ -436,44 +443,42 @@ section { position: relative; }
   display: inline-block;
   opacity: 0;
   filter: blur(var(--stream-blur));
-  transition: opacity var(--stream-dur) var(--stream-ease),
-              filter var(--stream-dur) var(--stream-ease);
+  transition: opacity var(--stream-dur) var(--ease),
+              filter var(--stream-dur) var(--ease);
 }
 .stream .w.is-in { opacity: 1; filter: blur(0); }
 
 /* ─────────────────────────────────────────────
    4 ─ 안내
    ───────────────────────────────────────────── */
-#info {
-  height: 100vh;
-  height: 100svh;
-}
+#info { height: 100vh; height: 100svh; }
+
 .info-label,
 .info-value {
   position: absolute;
-  left: calc(72 * var(--s));
+  left: calc(72 * var(--k));
   color: var(--body);
   line-height: 1.2;
   white-space: nowrap;
 }
-.info-label { font-size: calc(20 * var(--s)); font-weight: 600; }
-.info-value { font-size: calc(22 * var(--s)); font-weight: 400; }
-.l1 { top: 26.9%; }
-.v1 { top: 32.5%; }
-.l2 { top: 42.8%; }
-.v2 { top: 48.3%; }
-.l3 { top: 58.6%; }
+.info-label { font-size: calc(20 * var(--k)); font-weight: 600; }
+.info-value { font-size: calc(22 * var(--k)); font-weight: 400; }
+.l1 { top: calc(227 * var(--k)); }
+.v1 { top: calc(274 * var(--k)); }
+.l2 { top: calc(361 * var(--k)); }
+.v2 { top: calc(408 * var(--k)); }
+.l3 { top: calc(495 * var(--k)); }
 
 .apply {
   position: absolute;
-  top: 63.2%;
-  left: calc(72 * var(--s));
-  width: calc(199 * var(--s));
-  height: calc(62 * var(--s));
-  border-radius: calc(16 * var(--s));
+  left: calc(72 * var(--k));
+  top: calc(533 * var(--k));
+  width: calc(199 * var(--k));
+  height: calc(62 * var(--k));
+  border-radius: calc(16 * var(--k));
   background: var(--btn-bg);
   color: var(--btn-fg);
-  font-size: calc(27 * var(--s));
+  font-size: calc(27 * var(--k));
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -483,11 +488,11 @@ section { position: relative; }
 
 .reveal {
   opacity: 0;
-  transform: translateY(calc(8 * var(--s)));
+  transform: translateY(calc(8 * var(--k)));
   filter: blur(2px);
-  transition: opacity 600ms var(--stream-ease),
-              transform 600ms var(--stream-ease),
-              filter 600ms var(--stream-ease);
+  transition: opacity 560ms var(--ease),
+              transform 560ms var(--ease),
+              filter 560ms var(--ease);
 }
 .reveal.is-in { opacity: 1; transform: none; filter: blur(0); }
 
@@ -495,38 +500,43 @@ section { position: relative; }
    Reduced motion
    ───────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
-  .is-cur .ch, .is-ghost .ch { animation: none; }
+  .is-cur .ch, .is-ghost .ch,
+  .title-layer.is-cur, .title-layer.is-ghost { animation: none; }
   .is-ghost { display: none; }
+  .roster { transition: none; }
   .stream .w { opacity: 1; filter: none; transition: none; }
   .reveal { opacity: 1; transform: none; filter: none; transition: none; }
   .hint i { animation: none; opacity: 0.5; }
-  .stat-title.is-swapping { opacity: 1; filter: none; }
 }
 </style>
 </head>
 
 <body>
 
-<button id="sound" aria-pressed="false" aria-label="배경음악 켜기 / 끄기" title="사운드">
-  <img src="assets/img/volume.svg" alt="" width="20" height="20" />
-  <svg class="slash" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-    <line x1="2.5" y1="2.5" x2="18.5" y2="18.5" />
-  </svg>
-</button>
+<div class="overlay">
+  <div class="frame">
+    <button id="sound" aria-pressed="false" aria-label="배경음악 켜기 / 끄기" title="사운드">
+      <img src="assets/img/volume.svg" alt="" width="20" height="20" />
+      <svg class="slash" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <line x1="2.5" y1="2.5" x2="18.5" y2="18.5" />
+      </svg>
+    </button>
+
+    <div id="logo" aria-hidden="true">
+      <video src="assets/video/title.mp4" autoplay muted loop playsinline preload="auto" disablepictureinpicture></video>
+    </div>
+
+    <p class="hero-date">2026.10.17</p>
+  </div>
+</div>
 
 <audio id="bgm" src="assets/audio/bgm.m4a" loop preload="none" playsinline></audio>
-
-<!-- 메인 로고(공유 요소): 히어로 → 상단 도킹 -->
-<div id="logo" aria-hidden="true">
-  <video src="assets/video/title.mp4" autoplay muted loop playsinline preload="auto" disablepictureinpicture></video>
-</div>
-<p class="hero-date">2026.10.17</p>
 
 <main>
 
   <!-- 1 ─ Hero -->
   <section id="hero">
-    <div class="col">
+    <div class="frame">
       <div class="hint"><i></i></div>
     </div>
   </section>
@@ -534,17 +544,14 @@ section { position: relative; }
   <!-- 2 ─ 대주제 / 숫자 -->
   <section id="stats">
     <div class="stage">
-      <div class="col">
+      <div class="frame">
         <div class="rail"></div>
         <div class="rail-lit"></div>
         <div class="rail-mark"></div>
 
-        <p class="stat-title" id="statTitle">컨퍼런스 모집 인원</p>
-
-        <div class="stat-value">
-          <span class="num-stack" id="numStack"></span>
-          <span class="unit-stack" id="unitStack"></span>
-        </div>
+        <div class="stat-title" id="statTitle"></div>
+        <div class="stat-num" id="numStack"></div>
+        <div class="stat-unit" id="unitStack"></div>
 
         <div class="roster-wrap">
           <ul class="roster" id="roster">
@@ -563,69 +570,55 @@ section { position: relative; }
   <!-- 3 ─ 카드 세션 -->
   <section id="cards">
     <div class="stage">
-      <div class="col">
 
-        <article class="card" style="--mt:24.3%; --mw:356; --ar:356/193;">
-          <div class="card-media"><video src="assets/video/s1.mp4" loop muted playsinline preload="auto" disablepictureinpicture></video></div>
-          <div class="card-copy">
-            <div class="card-head"><h2>산업혁명</h2><span class="year">(1760~1840)</span></div>
-            <p class="card-body">산업혁명은 18세기 후반 영국에서 시작된 기계 발명과 기술 혁신이 생산 방식과 사회·경제 구조 전체를 뒤바꾼 대변혁입니다. 이 시기에 신분제가 무너지고 기술과 자본이 세상의 중심이 되면서, 역사상 처음으로 가장 밑바닥에서 당대 최고의 부자로 올라서는 자수성가가 대거 가능해졌습니다. 태어난 자리가 아니라 무엇을 익혔느냐가 사람의 운명을 가르기 시작한 것입니다.</p>
-          </div>
-          <p class="card-num">1/6</p>
-        </article>
+      <article class="card frame" style="--mx:17; --my:205; --mw:356; --mh:193;">
+        <div class="card-media"><video src="assets/video/s1.mp4" loop muted playsinline preload="metadata" disablepictureinpicture></video></div>
+        <div class="card-head"><h2>산업혁명</h2><span class="year">(1760~1840)</span></div>
+        <p class="card-body">산업혁명은 18세기 후반 영국에서 시작된 기계 발명과 기술 혁신이 생산 방식과 사회·경제 구조 전체를 뒤바꾼 대변혁입니다. 이 시기에 신분제가 무너지고 기술과 자본이 세상의 중심이 되면서, 역사상 처음으로 가장 밑바닥에서 당대 최고의 부자로 올라서는 자수성가가 대거 가능해졌습니다. 태어난 자리가 아니라 무엇을 익혔느냐가 사람의 운명을 가르기 시작한 것입니다.</p>
+        <p class="card-num">1/6</p>
+      </article>
 
-        <article class="card" style="--mt:23.9%; --mw:278; --ar:278/196;">
-          <div class="card-media"><video src="assets/video/s2.mp4" loop muted playsinline preload="none" disablepictureinpicture></video></div>
-          <div class="card-copy">
-            <div class="card-head"><h2>조지 스티븐슨</h2><span class="year">(1781~1848)</span></div>
-            <p class="card-body">조지 스티븐슨은 가난한 탄광 노동자의 아들로 태어나 학교를 다니지 못했고, 18세가 되도록 글을 전혀 읽지 못하는 문맹이었습니다. 그는 탄광 안의 야간 학교에서 밤늦게 글을 깨우쳤고, 공장에 있던 증기기관의 원리를 독학으로 익혀 탄광 기계 수리공으로 이름을 알렸습니다. 그리고 세계 최초의 상업용 증기기관차를 만들어 ‘철도 시대’의 서막을 열었고, 막대한 부를 쌓아 영국 산업계의 전설이 되었습니다. 그가 가진 것은 배경도, 학벌도 아니었습니다. 새로운 기술을 남보다 먼저 붙잡겠다는 간절함, 그것 하나였습니다.</p>
-          </div>
-          <p class="card-num">2/6</p>
-        </article>
+      <article class="card frame" style="--mx:56; --my:202; --mw:278; --mh:196;">
+        <div class="card-media"><video src="assets/video/s2.mp4" loop muted playsinline preload="metadata" disablepictureinpicture></video></div>
+        <div class="card-head"><h2>조지 스티븐슨</h2><span class="year">(1781~1848)</span></div>
+        <p class="card-body">조지 스티븐슨은 가난한 탄광 노동자의 아들로 태어나 학교를 다니지 못했고, 18세가 되도록 글을 전혀 읽지 못하는 문맹이었습니다. 그는 탄광 안의 야간 학교에서 밤늦게 글을 깨우쳤고, 공장에 있던 증기기관의 원리를 독학으로 익혀 탄광 기계 수리공으로 이름을 알렸습니다. 그리고 세계 최초의 상업용 증기기관차를 만들어 ‘철도 시대’의 서막을 열었고, 막대한 부를 쌓아 영국 산업계의 전설이 되었습니다. 그가 가진 것은 배경도, 학벌도 아니었습니다. 새로운 기술을 남보다 먼저 붙잡겠다는 간절함, 그것 하나였습니다.</p>
+        <p class="card-num">2/6</p>
+      </article>
 
-        <article class="card" style="--mt:23.6%; --mw:230; --ar:230/203;">
-          <div class="card-media"><video src="assets/video/s3.mp4" loop muted playsinline preload="none" disablepictureinpicture></video></div>
-          <div class="card-copy">
-            <div class="card-head"><h2>육체에서 지식으로</h2><span class="year">(2026)</span></div>
-            <p class="card-body">1차 산업혁명이 블루칼라, 즉 육체 노동자의 세계를 흔들었다면, AI 시대는 화이트칼라, 지식·전문직 노동자의 세계를 정면으로 흔들고 있습니다. 차이는 속도입니다. 산업혁명이 퍼지는 데는 수십 년에서 수백 년이 걸렸지만, AI는 단 몇 주, 몇 달 만에 퍼집니다. 게다가 산업혁명이 ‘원래 하던 일’을 대체했다면, AI는 생각지도 못한 영역까지 대체하고 있습니다. 그 결과 많은 사람이 뒤처지는 것을 넘어, 아예 진입조차 생각하지 않고 외면해 버리는 현상까지 벌어지고 있습니다.</p>
-          </div>
-          <p class="card-num">3/6</p>
-        </article>
+      <article class="card frame" style="--mx:80; --my:199; --mw:230; --mh:203;">
+        <div class="card-media"><video src="assets/video/s3.mp4" loop muted playsinline preload="metadata" disablepictureinpicture></video></div>
+        <div class="card-head"><h2>육체에서 지식으로</h2><span class="year">(2026)</span></div>
+        <p class="card-body">1차 산업혁명이 블루칼라, 즉 육체 노동자의 세계를 흔들었다면, AI 시대는 화이트칼라, 지식·전문직 노동자의 세계를 정면으로 흔들고 있습니다. 차이는 속도입니다. 산업혁명이 퍼지는 데는 수십 년에서 수백 년이 걸렸지만, AI는 단 몇 주, 몇 달 만에 퍼집니다. 게다가 산업혁명이 ‘원래 하던 일’을 대체했다면, AI는 생각지도 못한 영역까지 대체하고 있습니다. 그 결과 많은 사람이 뒤처지는 것을 넘어, 아예 진입조차 생각하지 않고 외면해 버리는 현상까지 벌어지고 있습니다.</p>
+        <p class="card-num">3/6</p>
+      </article>
 
-        <article class="card" style="--mt:23.6%; --mw:265; --ar:265/204;">
-          <div class="card-media"><video src="assets/video/s4.mp4" loop muted playsinline preload="none" disablepictureinpicture></video></div>
-          <div class="card-copy">
-            <div class="card-head"><h2>새로운 땅</h2><span class="year">(2026)</span></div>
-            <p class="card-body">AI는 선택받은 사람들만의 것이 아닙니다. 오히려 아무것도 모르는 사람을 위한 것이라 해도 될 만큼, 지식인이 아닌 사람이 적게 투자하고 많이 가져가는 로우리스크 하이리턴의 기회입니다. 스티븐슨의 시대에 증기기관이 그랬듯이 말입니다. 그런데 사람들은 하지 않습니다. 미디어가 외치는 ‘AI 찬양’과 ‘지금 안 하면 늦는다’는 결핍 마케팅에 대한 반감이 쌓여, AI를 한다는 것 자체가 무겁고 부담스러운 일로 느껴지기 때문일 것입니다. 저는 그 무게를 걷어내고 싶습니다.</p>
-          </div>
-          <p class="card-num">4/6</p>
-        </article>
+      <article class="card frame" style="--mx:59; --my:199; --mw:265; --mh:204;">
+        <div class="card-media"><video src="assets/video/s4.mp4" loop muted playsinline preload="metadata" disablepictureinpicture></video></div>
+        <div class="card-head"><h2>새로운 땅</h2><span class="year">(2026)</span></div>
+        <p class="card-body">AI는 선택받은 사람들만의 것이 아닙니다. 오히려 아무것도 모르는 사람을 위한 것이라 해도 될 만큼, 지식인이 아닌 사람이 적게 투자하고 많이 가져가는 로우리스크 하이리턴의 기회입니다. 스티븐슨의 시대에 증기기관이 그랬듯이 말입니다. 그런데 사람들은 하지 않습니다. 미디어가 외치는 ‘AI 찬양’과 ‘지금 안 하면 늦는다’는 결핍 마케팅에 대한 반감이 쌓여, AI를 한다는 것 자체가 무겁고 부담스러운 일로 느껴지기 때문일 것입니다. 저는 그 무게를 걷어내고 싶습니다.</p>
+        <p class="card-num">4/6</p>
+      </article>
 
-        <article class="card" style="--mt:20.9%; --mw:182; --ar:182/250;">
-          <div class="card-media"><video src="assets/video/s5.mp4" loop muted playsinline preload="none" disablepictureinpicture></video></div>
-          <div class="card-copy">
-            <div class="card-head"><h2>불씨</h2><span class="year">(2026)</span></div>
-            <p class="card-body">이 자리는 AI 용어를 외우는 시간이 아닙니다. 5시간이 끝나면 당신은 오늘 아침까지 손으로 하던 일 하나를 AI에게 맡기는 법을 알게 되고, “나는 못 해”라는 말이 왜 틀렸는지를 머리가 아니라 손으로 확인하게 됩니다. 그리고 내일 무엇부터 해야 하는지가 종이 한 장에 적혀 있을 겁니다. 스티븐슨이 야간 학교에서 처음 글자를 읽은 그 밤처럼, 그 시작이면 충분합니다.</p>
-          </div>
-          <p class="card-num">5/6</p>
-        </article>
+      <article class="card frame" style="--mx:104; --my:176; --mw:182; --mh:250;">
+        <div class="card-media"><video src="assets/video/s5.mp4" loop muted playsinline preload="metadata" disablepictureinpicture></video></div>
+        <div class="card-head"><h2>불씨</h2><span class="year">(2026)</span></div>
+        <p class="card-body">이 자리는 AI 용어를 외우는 시간이 아닙니다. 5시간이 끝나면 당신은 오늘 아침까지 손으로 하던 일 하나를 AI에게 맡기는 법을 알게 되고, “나는 못 해”라는 말이 왜 틀렸는지를 머리가 아니라 손으로 확인하게 됩니다. 그리고 내일 무엇부터 해야 하는지가 종이 한 장에 적혀 있을 겁니다. 스티븐슨이 야간 학교에서 처음 글자를 읽은 그 밤처럼, 그 시작이면 충분합니다.</p>
+        <p class="card-num">5/6</p>
+      </article>
 
-        <article class="card" style="--mt:21.0%; --mw:191; --ar:191/249;">
-          <div class="card-media"><video src="assets/video/s6.mp4" loop muted playsinline preload="none" disablepictureinpicture></video></div>
-          <div class="card-copy">
-            <div class="card-head"><h2>1,000만원</h2><span class="year">(2026)</span></div>
-            <p class="card-body">저는 이 5시간이 그 이상의 값어치를 하는 시간이라고 믿지만, 이 지식의 가치를 돈으로 팔지 않습니다. AI를 향한 저의 진심을 어떤 욕심도 없이 나누기 위해, 이 행사에는 스폰서도, 단톡방도, 그 이후의 어떠한 액션도 두지 않습니다. 단 하루 진행하고 사라집니다. 이 컨퍼런스에 필요한 것은 딱 하나, AI를 배우고자 하는 당신의 마음가짐과 간절함뿐입니다.</p>
-          </div>
-          <p class="card-num">6/6</p>
-        </article>
+      <article class="card frame" style="--mx:99; --my:177; --mw:191; --mh:249;">
+        <div class="card-media"><video src="assets/video/s6.mp4" loop muted playsinline preload="metadata" disablepictureinpicture></video></div>
+        <div class="card-head"><h2>1,000만원</h2><span class="year">(2026)</span></div>
+        <p class="card-body">저는 이 5시간이 그 이상의 값어치를 하는 시간이라고 믿지만, 이 지식의 가치를 돈으로 팔지 않습니다. AI를 향한 저의 진심을 어떤 욕심도 없이 나누기 위해, 이 행사에는 스폰서도, 단톡방도, 그 이후의 어떠한 액션도 두지 않습니다. 단 하루 진행하고 사라집니다. 이 컨퍼런스에 필요한 것은 딱 하나, AI를 배우고자 하는 당신의 마음가짐과 간절함뿐입니다.</p>
+        <p class="card-num">6/6</p>
+      </article>
 
-      </div>
     </div>
   </section>
 
   <!-- 4 ─ 안내 -->
   <section id="info">
-    <div class="col">
+    <div class="frame">
       <p class="info-label l1 reveal">일정</p>
       <p class="info-value v1 reveal">2026.10.17 (토) 12시~17시</p>
       <p class="info-label l2 reveal">장소</p>
@@ -660,35 +653,34 @@ section { position: relative; }
 
   const POP_DUR = 500;      // transitions.dev p9 --p9-dur
   const POP_STAGGER = 70;   // transitions.dev p9 --p9-stagger
-  const STREAM_GAP = 60;    // transitions.dev p30 --p30-word-gap
+  const FLOW_DUR = 540;     // 타이틀·목록이 흘러 지나가는 시간
+  const STREAM_GAP = 32;    // p30 의 60ms 를 요청대로 단축
 
   /* ── DOM ───────────────────────────────────────── */
+  const heroSec = document.getElementById("hero");
   const statsSec = document.getElementById("stats");
   const cardsSec = document.getElementById("cards");
   const infoSec = document.getElementById("info");
-  const statTitle = document.getElementById("statTitle");
+
+  const titleStack = document.getElementById("statTitle");
   const numStack = document.getElementById("numStack");
   const unitStack = document.getElementById("unitStack");
-  const statValue = document.querySelector(".stat-value");
   const roster = document.getElementById("roster");
   const rosterItems = [...roster.children];
+
   const cards = [...document.querySelectorAll(".card")];
   const videos = cards.map((c) => c.querySelector("video"));
-  const heroSec = document.getElementById("hero");
+
   const logo = document.getElementById("logo");
   const logoVideo = logo.querySelector("video");
   const heroDate = document.querySelector(".hero-date");
   const bgm = document.getElementById("bgm");
   const soundBtn = document.getElementById("sound");
 
-  /* 히어로에서의 로고 확대 배율 — 글자 폭이 컬럼의 84%가 되는 크기 */
-  const LOGO_HERO_SCALE = 1.7526;
-  const LOGO_HERO_CENTER = 0.445; // 뷰포트 높이 기준 글자 중심 (Figma y=376/844)
-
   /* ─────────────────────────────────────────────────
      number pop-in  (transitions.dev / p9)
      ───────────────────────────────────────────────── */
-  function buildLayer(text, cls) {
+  function buildChars(text, cls) {
     const layer = document.createElement("span");
     layer.className = cls;
     const chars = [...text];
@@ -696,14 +688,14 @@ section { position: relative; }
       const s = document.createElement("span");
       s.className = "ch";
       s.textContent = chr;
-      // 오른쪽 자리(1의 자리)부터 채워지도록 stagger를 뒤에서부터 준다
+      // 오른쪽 자리(1의 자리)부터 채워지도록 stagger 를 뒤에서부터
       s.style.animationDelay = (chars.length - 1 - i) * POP_STAGGER + "ms";
       layer.appendChild(s);
     });
     return layer;
   }
 
-  function swapLayer(stack, text, base) {
+  function swapLayer(stack, base, node, life) {
     const prev = stack.querySelector("." + base + ".is-cur");
     if (prev) {
       if (reduced) {
@@ -711,17 +703,15 @@ section { position: relative; }
       } else {
         prev.classList.remove("is-cur");
         prev.classList.add("is-ghost");
-        const life = POP_DUR + POP_STAGGER * prev.children.length + 80;
         setTimeout(() => prev.remove(), life);
       }
     }
-    stack.appendChild(buildLayer(text, base + " is-cur"));
+    node.classList.add(base, "is-cur");
+    stack.appendChild(node);
   }
 
   let curStep = -1;
-  let titleTimer = 0;
 
-  // 목록 한 칸 간격(li 높이 + gap) — 반응형이라 DOM에서 실측
   function rosterPitch() {
     if (rosterItems.length < 2) return 0;
     return rosterItems[1].offsetTop - rosterItems[0].offsetTop;
@@ -731,42 +721,38 @@ section { position: relative; }
     const s = STEPS[i];
     document.documentElement.style.setProperty("--pop-dir", dir >= 0 ? "1" : "-1");
 
+    // 대주제 타이틀 — 위로 올라가며 사라지고 아래에서 올라온다
+    const t = document.createElement("span");
+    t.textContent = s.title;
+    swapLayer(titleStack, "title-layer", t, FLOW_DUR + 40);
+
+    // 숫자 · 단위
+    const numLife = POP_DUR + POP_STAGGER * s.num.length + 80;
+    swapLayer(numStack, "num-layer", buildChars(s.num, ""), numLife);
+    swapLayer(unitStack, "unit-layer", buildChars(s.unit, ""), POP_DUR + 80);
+
     // 지나간 대주제는 위로 흘려보낸다 (step 0 = 전부 보임)
     roster.style.transform = "translateY(" + -(s.roster + 1) * rosterPitch() + "px)";
 
-    // 타이틀은 짧게 blur-out → 교체 → blur-in
-    if (reduced) {
-      statTitle.textContent = s.title;
-    } else {
-      statTitle.classList.add("is-swapping");
-      clearTimeout(titleTimer);
-      titleTimer = setTimeout(() => {
-        statTitle.textContent = s.title;
-        statTitle.classList.remove("is-swapping");
-      }, 160);
-    }
-
-    swapLayer(numStack, s.num, "num-layer");
-    swapLayer(unitStack, s.unit, "unit-layer");
-    fitValue();
+    fitNumber();
   }
 
-  /* 700,000,000 처럼 긴 숫자가 좁은 화면에서 잘리지 않도록 하는 안전장치.
+  /* 700,000,000 처럼 긴 숫자가 좁은 화면에서 잘리지 않게 하는 안전장치.
      들어맞을 때는 아무 것도 하지 않는다. */
-  function fitValue() {
+  function fitNumber() {
     const n = numStack.querySelector(".num-layer.is-cur");
-    const u = unitStack.querySelector(".unit-layer.is-cur");
-    if (!n || !u) return;
-    statValue.style.transform = "";
-    const need = n.offsetWidth + u.offsetWidth;
-    const avail = statValue.clientWidth;
-    if (need > avail && need > 0) {
-      statValue.style.transform = "scale(" + (avail / need).toFixed(4) + ")";
+    if (!n) return;
+    numStack.style.transform = "";
+    const fr = numStack.parentElement.getBoundingClientRect(); // .frame
+    const room = numStack.getBoundingClientRect().right - (fr.left + fr.width * (16 / 390));
+    const need = n.offsetWidth;
+    if (need > room && room > 0) {
+      numStack.style.transform = "scale(" + (room / need).toFixed(4) + ")";
     }
   }
 
   /* ─────────────────────────────────────────────────
-     streaming text  (transitions.dev / p30)
+     streaming text  (transitions.dev / p30, 단축판)
      ───────────────────────────────────────────────── */
   function prepareStream(p) {
     const parts = p.textContent.split(/(\s+)/);
@@ -775,9 +761,8 @@ section { position: relative; }
     const frag = document.createDocumentFragment();
     for (const part of parts) {
       if (!part) continue;
-      if (/^\s+$/.test(part)) {
-        frag.appendChild(document.createTextNode(part));
-      } else {
+      if (/^\s+$/.test(part)) frag.appendChild(document.createTextNode(part));
+      else {
         const w = document.createElement("span");
         w.className = "w";
         w.textContent = part;
@@ -802,15 +787,15 @@ section { position: relative; }
 
   /* ─────────────────────────────────────────────────
      사운드 — BGM + 활성 카드 영상 소리
+     iOS Safari 는 media element 의 .volume 을 무시하므로
+     Web Audio GainNode 를 거쳐 음량을 조절한다.
      ───────────────────────────────────────────────── */
   const BGM_VOL = 0.35;
   const VIDEO_VOL = 0.16;
   let soundOn = false;
   let audibleIdx = -1;
+  let userDecided = false;
 
-  /* iOS Safari 는 media element 의 .volume 설정을 무시한다(읽기 전용).
-     "영상 소리는 작게" 를 지키려면 Web Audio 의 GainNode 를 거쳐야 한다.
-     그래프는 사용자 제스처 이후에만 만든다. */
   let actx = null;
   const gains = new WeakMap();
 
@@ -860,9 +845,6 @@ section { position: relative; }
     });
   }
 
-  // 사용자가 사운드를 직접 켜고 끈 뒤에는 자동재생 결과가 상태를 덮어쓰지 않게 한다
-  let userDecided = false;
-
   function tryAutoplay() {
     bgm.play().then(
       () => { if (!userDecided) { soundOn = true; applyAudio(); } },
@@ -870,7 +852,6 @@ section { position: relative; }
     );
   }
 
-  // 자동재생이 차단됐다면 첫 상호작용에서 한 번 더 시도
   function unlockOnce() {
     if (soundOn || userDecided) return;
     ensureGraph();
@@ -889,6 +870,35 @@ section { position: relative; }
     applyAudio();
   });
 
+  /* 영상은 muted + playsinline + autoplay 라 브라우저가 알아서 재생하지만,
+     iOS 는 화면 밖으로 나가면 멈춰 세우고 돌아와도 스스로 재개하지 않는다.
+     활성 카드는 항상 재생 상태가 되도록 붙잡아 준다. */
+  function kick(v) {
+    const p = v.play();
+    if (p && p.catch) {
+      // 소리를 켠 상태에서 막히면 음소거로라도 화면은 돌아가게 한다
+      p.catch(() => { v.muted = true; v.play().catch(() => {}); });
+    }
+  }
+
+  function pump() {
+    videos.forEach((v, i) => {
+      if (i === audibleIdx) {
+        if (v.preload !== "auto") v.preload = "auto";
+        if (v.paused) kick(v);
+      } else if (!v.paused) {
+        v.pause();
+      }
+      // 바로 다음 카드는 미리 받아둔다 (재생은 하지 않음)
+      if (i === audibleIdx + 1 && v.preload === "metadata") v.preload = "auto";
+    });
+    if (logoVideo.paused) kick(logoVideo);
+  }
+  videos.forEach((v) => {
+    v.addEventListener("canplay", pump);
+    v.addEventListener("loadeddata", pump);
+  });
+
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
       bgm.pause();
@@ -896,8 +906,9 @@ section { position: relative; }
       logoVideo.pause();
     } else {
       if (soundOn) bgm.play().catch(() => {});
-      logoVideo.play().catch(() => {});
       audibleIdx = -1;
+      // 백그라운드에서는 rAF 가 돌지 않아 예약이 물려 있을 수 있다
+      ticking = false;
       schedule();
     }
   });
@@ -914,21 +925,13 @@ section { position: relative; }
 
     document.body.classList.toggle("is-scrolled", y > 40);
 
-    /* — 메인 로고: 히어로 크기 → 상단 도킹 — */
+    /* — 메인 로고: 히어로 → 상단 도킹 — */
     {
       const heroH = heroSec.offsetHeight || vh;
       const q = clamp(y / heroH, 0, 1);
-      const e = q < 0.5 ? 2 * q * q : 1 - Math.pow(-2 * q + 2, 2) / 2; // easeInOut
-      const lh = logo.offsetHeight;
-      const sb = soundBtn.getBoundingClientRect();
-      const tyDock = sb.top + sb.height / 2 - lh / 2;
-      const tyHero = vh * LOGO_HERO_CENTER - lh / 2;
-      const k = LOGO_HERO_SCALE + (1 - LOGO_HERO_SCALE) * e;
-      const ty = tyHero + (tyDock - tyHero) * e;
-      logo.style.transform =
-        "translate(-50%, " + ty.toFixed(2) + "px) scale(" + k.toFixed(4) + ")";
+      const e = q < 0.5 ? 2 * q * q : 1 - Math.pow(-2 * q + 2, 2) / 2;
+      logo.style.setProperty("--e", e.toFixed(4));
 
-      // 카드 섹션으로 넘어가면 로고를 걷어낸다 (Figma 3페이지부터는 로고 없음)
       const unpin = statsSec.offsetTop + statsSec.offsetHeight - vh;
       const out = clamp((y - unpin) / (vh * 0.5), 0, 1);
       logo.style.opacity = String(1 - out);
@@ -967,18 +970,7 @@ section { position: relative; }
 
     if (active !== audibleIdx) {
       audibleIdx = active;
-      videos.forEach((v, i) => {
-        const near = active >= 0 && Math.abs(i - active) <= 1;
-        if (near && v.getAttribute("preload") === "none") {
-          v.setAttribute("preload", "auto");
-          v.load();
-        }
-        if (i === active) {
-          v.play().catch(() => {});
-        } else if (!near) {
-          v.pause();
-        }
-      });
+      pump();
       applyAudio();
       if (active >= 0) {
         // 빠르게 스크롤해 건너뛴 카드는 지연 없이 바로 채워둔다
@@ -1002,17 +994,19 @@ section { position: relative; }
     if (ticking) return;
     ticking = true;
     requestAnimationFrame(() => { ticking = false; update(); });
+    // 화면이 숨겨져 rAF 가 보류되면 예약이 영영 풀리지 않으므로 안전핀을 둔다
+    setTimeout(() => { if (ticking) { ticking = false; update(); } }, 250);
   }
 
-  // 폭이 바뀌면 목록 한 칸 간격도 바뀌므로 위치를 다시 잡아준다
+  // 폭·높이가 바뀌면 목록 한 칸 간격도 바뀌므로 위치를 다시 잡는다
   function relayout() {
-    fitValue();
     const prev = roster.style.transition;
     roster.style.transition = "none";
     roster.style.transform =
       "translateY(" + -(STEPS[curStep].roster + 1) * rosterPitch() + "px)";
     void roster.offsetWidth;
     roster.style.transition = prev;
+    fitNumber();
     schedule();
   }
 
@@ -1020,11 +1014,15 @@ section { position: relative; }
   addEventListener("resize", relayout, { passive: true });
   addEventListener("orientationchange", relayout, { passive: true });
 
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(() => relayout());
+  }
+
   applyStep(0, 1);
   curStep = 0;
   update();
   tryAutoplay();
-  logoVideo.play().catch(() => {});
+  pump();
 })();
 </script>
 
