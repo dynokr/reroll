@@ -825,43 +825,90 @@ section { position: relative; }
   const bodies = cards.map((c) => prepareStream(c.querySelector(".card-body")));
 
   /* ─────────────────────────────────────────────────
-     사운드 — BGM + 활성 카드 영상 소리
-     iOS Safari 는 media element 의 .volume 을 무시하므로
-     Web Audio GainNode 를 거쳐 음량을 조절한다.
+     사운드 — 배경음악 + 장면 소리
+
+     iOS Safari 는 소리를 내는 media element 가 둘이면 하나를 정지시킨다.
+     그래서 소리 나는 요소는 배경음악 <audio> 하나만 두고,
+     장면 소리는 같은 AudioContext 안에서 버퍼로 재생해 함께 섞는다.
+     (media element 의 .volume 도 iOS 는 무시하므로 음량은 GainNode 로 조절)
      ───────────────────────────────────────────────── */
   const BGM_VOL = 0.35;
-  const VIDEO_VOL = 0.16;
+  const SCENE_VOL = 0.16;
   let soundOn = false;
   let audibleIdx = -1;
   let userDecided = false;
 
   let actx = null;
-  const gains = new WeakMap();
+  let bgmGain = null;
+  let sceneGain = null;
+  let sceneSource = null;
+  let sceneIdx = -1;
+  const sceneBuffers = new Map();   // index → AudioBuffer
+  const sceneLoading = new Map();   // index → Promise
 
   function ensureGraph() {
     if (actx) return;
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     try { actx = new AC(); } catch (e) { return; }
-    const wire = (el, vol) => {
-      try {
-        const src = actx.createMediaElementSource(el);
-        const g = actx.createGain();
-        g.gain.value = vol;
-        src.connect(g);
-        g.connect(actx.destination);
-        gains.set(el, g);
-      } catch (e) { /* 이미 연결됐거나 미지원 */ }
-    };
-    wire(bgm, BGM_VOL);
-    videos.forEach((v) => wire(v, VIDEO_VOL));
+
+    sceneGain = actx.createGain();
+    sceneGain.gain.value = SCENE_VOL;
+    sceneGain.connect(actx.destination);
+
+    try {
+      const src = actx.createMediaElementSource(bgm);
+      bgmGain = actx.createGain();
+      bgmGain.gain.value = BGM_VOL;
+      src.connect(bgmGain);
+      bgmGain.connect(actx.destination);
+    } catch (e) { /* 이미 연결됐거나 미지원 */ }
   }
 
-  function setLevel(el, vol) {
-    const g = gains.get(el);
-    if (g && actx) g.gain.setTargetAtTime(vol, actx.currentTime, 0.04);
-    else { try { el.volume = vol; } catch (e) {} }
-    el.muted = vol <= 0;
+  function ramp(node, vol) {
+    if (node && actx) node.gain.setTargetAtTime(vol, actx.currentTime, 0.06);
+  }
+
+  function loadScene(i) {
+    if (sceneBuffers.has(i)) return Promise.resolve(sceneBuffers.get(i));
+    if (sceneLoading.has(i)) return sceneLoading.get(i);
+    const job = fetch("assets/audio/s" + (i + 1) + ".m4a")
+      .then((r) => r.arrayBuffer())
+      .then((buf) => new Promise((res, rej) => {
+        // Safari 구버전은 Promise 형태를 지원하지 않아 콜백도 함께 넘긴다
+        const out = actx.decodeAudioData(buf, res, rej);
+        if (out && out.then) out.then(res, rej);
+      }))
+      .then((audio) => { sceneBuffers.set(i, audio); return audio; })
+      .catch(() => null);
+    sceneLoading.set(i, job);
+    return job;
+  }
+
+  function stopScene() {
+    if (sceneSource) {
+      try { sceneSource.stop(); } catch (e) {}
+      try { sceneSource.disconnect(); } catch (e) {}
+      sceneSource = null;
+    }
+    sceneIdx = -1;
+  }
+
+  function playScene(i) {
+    if (!actx || i < 0) { stopScene(); return; }
+    if (i === sceneIdx && sceneSource) return;
+    stopScene();
+    sceneIdx = i;
+    loadScene(i).then((buf) => {
+      // 그 사이 다른 카드로 넘어갔으면 버린다
+      if (!buf || !actx || sceneIdx !== i || !soundOn) return;
+      const src = actx.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+      src.connect(sceneGain);
+      try { src.start(); } catch (e) { return; }
+      sceneSource = src;
+    });
   }
 
   function applyAudio() {
@@ -870,19 +917,30 @@ section { position: relative; }
     if (soundOn) {
       ensureGraph();
       if (actx && actx.state === "suspended") actx.resume().catch(() => {});
-      setLevel(bgm, BGM_VOL);
+      ramp(bgmGain, BGM_VOL);
+      bgm.muted = false;
+      if (!bgmGain) { try { bgm.volume = BGM_VOL; } catch (e) {} }
       bgm.play().catch(() => {});
+      ramp(sceneGain, SCENE_VOL);
+      playScene(audibleIdx);
     } else {
-      setLevel(bgm, 0);
+      ramp(bgmGain, 0);
+      bgm.muted = true;
       bgm.pause();
+      ramp(sceneGain, 0);
+      stopScene();
     }
 
-    videos.forEach((v, i) => {
-      if (soundOn && i === audibleIdx) setLevel(v, VIDEO_VOL);
-      else if (gains.has(v)) setLevel(v, 0);
-      else v.muted = true;
-    });
+    // 영상 자체에는 오디오 트랙이 없다. 항상 무음으로 재생한다.
+    videos.forEach((v) => { v.muted = true; });
   }
+
+  // 배경음악이 외부 요인(전화, 다른 앱)으로 멈추면 다시 이어준다
+  bgm.addEventListener("pause", () => {
+    if (soundOn && !document.hidden) setTimeout(() => {
+      if (soundOn && bgm.paused && !document.hidden) bgm.play().catch(() => {});
+    }, 120);
+  });
 
   function tryAutoplay() {
     bgm.play().then(
@@ -913,11 +971,9 @@ section { position: relative; }
      iOS 는 화면 밖으로 나가면 멈춰 세우고 돌아와도 스스로 재개하지 않는다.
      활성 카드는 항상 재생 상태가 되도록 붙잡아 준다. */
   function kick(v) {
+    v.muted = true; // 영상에는 오디오 트랙이 없다. 자동재생 조건도 맞춰둔다.
     const p = v.play();
-    if (p && p.catch) {
-      // 소리를 켠 상태에서 막히면 음소거로라도 화면은 돌아가게 한다
-      p.catch(() => { v.muted = true; v.play().catch(() => {}); });
-    }
+    if (p && p.catch) p.catch(() => {});
   }
 
   function pump() {
@@ -942,9 +998,12 @@ section { position: relative; }
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
       bgm.pause();
+      stopScene();
+      if (actx && actx.state === "running") actx.suspend().catch(() => {});
       videos.forEach((v) => v.pause());
       logoVideo.pause();
     } else {
+      if (actx && actx.state === "suspended") actx.resume().catch(() => {});
       if (soundOn) bgm.play().catch(() => {});
       audibleIdx = -1;
       // 백그라운드에서는 rAF 가 돌지 않아 예약이 물려 있을 수 있다
