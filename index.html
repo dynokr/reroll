@@ -250,22 +250,30 @@ section { position: relative; }
   will-change: transform;
 }
 
-/* 왼쪽 세로선 (Figma x=16) */
+/* 왼쪽 세로선 — Figma Vector 1/2. 둘 다 위아래로 투명하게 빠지는 그라디언트.
+   두께 2px(x 15~17)이라 화살표 밑변(x=17)이 선 오른쪽에 정확히 붙는다. */
 .rail {
   position: absolute;
-  left: calc(16 * var(--k));
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  background: rgba(255, 255, 255, 0.14);
+  left: calc(15 * var(--k));
+  top: calc(-31 * var(--k));
+  height: calc(806 * var(--k));
+  width: calc(2 * var(--k));
+  background: linear-gradient(to bottom,
+      rgba(43, 43, 43, 0) 6.76%,
+      #2b2b2b 21.93%,
+      #2b2b2b 88.46%,
+      rgba(43, 43, 43, 0) 100%);
 }
 .rail-lit {
   position: absolute;
-  left: calc(16 * var(--k));
+  left: calc(15 * var(--k));
   top: calc(204 * var(--k));
   height: calc(90 * var(--k));
-  width: 1px;
-  background: var(--white);
+  width: calc(2 * var(--k));
+  background: linear-gradient(to bottom,
+      rgba(255, 255, 255, 0) 6.76%,
+      #ffffff 45.19%,
+      rgba(255, 255, 255, 0) 100%);
 }
 /* Polygon 1 — 회전 후 실제 크기 6×13.86, x 17~23, 세로 중심 249 */
 .rail-mark {
