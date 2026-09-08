@@ -171,7 +171,7 @@ section { position: relative; }
   transform-origin: center center;
   transform:
     translate(calc(0.5 * (1 - var(--e)) * var(--k)),
-              calc(300.98 * (1 - var(--e)) * var(--k)))
+              calc((300.98 * (1 - var(--e)) + var(--lty, 0)) * var(--k)))
     scale(calc(1 + 0.8328 * (1 - var(--e))));
   will-change: transform, opacity;
 }
@@ -228,9 +228,19 @@ section { position: relative; }
 .is-scrolled .hint { opacity: 0; }
 
 /* ─────────────────────────────────────────────
-   2 ─ 대주제 / 숫자
+   2~8 ─ 대주제/숫자 + 카드 세션 (한 무대)
+
+   페이지는 제자리에서 바뀌지 않고, 나가는 쪽은 위로 훅 빠지고
+   들어오는 쪽은 아래에서 올라온다.
    ───────────────────────────────────────────── */
-#stats { height: calc(100svh + 7 * 62svh); }
+#deck { height: calc(100svh + 7 * 62svh + 6 * 130svh); }
+
+.page {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(calc(var(--ty, 0) * var(--k)));
+  will-change: transform, opacity;
+}
 
 /* 왼쪽 세로선 (Figma x=16) */
 .rail {
@@ -370,16 +380,6 @@ section { position: relative; }
   white-space: nowrap;
 }
 
-/* ─────────────────────────────────────────────
-   3 ─ 카드 세션
-   ───────────────────────────────────────────── */
-#cards { height: calc(100svh + 6 * 130svh); }
-
-.card {
-  opacity: 0;
-  visibility: hidden;
-  will-change: opacity;
-}
 /* 카드마다 Figma 좌표 그대로: --mx --my --mw --mh */
 .card-media {
   position: absolute;
@@ -542,10 +542,11 @@ section { position: relative; }
     </div>
   </section>
 
-  <!-- 2 ─ 대주제 / 숫자 -->
-  <section id="stats">
+  <!-- 2~8 ─ 대주제/숫자 + 카드 세션. 한 무대 위에서 페이지가 위로 넘어간다 -->
+  <section id="deck">
     <div class="stage">
-      <div class="frame">
+
+      <div class="frame page" id="statsPage">
         <div class="rail"></div>
         <div class="rail-lit"></div>
         <div class="rail-mark"></div>
@@ -565,49 +566,43 @@ section { position: relative; }
           </ul>
         </div>
       </div>
-    </div>
-  </section>
 
-  <!-- 3 ─ 카드 세션 -->
-  <section id="cards">
-    <div class="stage">
-
-      <article class="card frame" style="--mx:17; --my:205; --mw:356; --mh:193;">
+      <article class="card page frame" style="--mx:17; --my:205; --mw:356; --mh:193;">
         <div class="card-media"><video src="assets/video/s1.mp4" loop muted playsinline preload="metadata" disablepictureinpicture></video></div>
         <div class="card-head"><h2>산업혁명</h2><span class="year">(1760~1840)</span></div>
         <p class="card-body">산업혁명은 18세기 후반 영국에서 시작된 기계 발명과 기술 혁신이 생산 방식과 사회·경제 구조 전체를 뒤바꾼 대변혁입니다. 이 시기에 신분제가 무너지고 기술과 자본이 세상의 중심이 되면서, 역사상 처음으로 가장 밑바닥에서 당대 최고의 부자로 올라서는 자수성가가 대거 가능해졌습니다. 태어난 자리가 아니라 무엇을 익혔느냐가 사람의 운명을 가르기 시작한 것입니다.</p>
         <p class="card-num">1/6</p>
       </article>
 
-      <article class="card frame" style="--mx:56; --my:202; --mw:278; --mh:196;">
+      <article class="card page frame" style="--mx:56; --my:202; --mw:278; --mh:196;">
         <div class="card-media"><video src="assets/video/s2.mp4" loop muted playsinline preload="metadata" disablepictureinpicture></video></div>
         <div class="card-head"><h2>조지 스티븐슨</h2><span class="year">(1781~1848)</span></div>
         <p class="card-body">조지 스티븐슨은 가난한 탄광 노동자의 아들로 태어나 학교를 다니지 못했고, 18세가 되도록 글을 전혀 읽지 못하는 문맹이었습니다. 그는 탄광 안의 야간 학교에서 밤늦게 글을 깨우쳤고, 공장에 있던 증기기관의 원리를 독학으로 익혀 탄광 기계 수리공으로 이름을 알렸습니다. 그리고 세계 최초의 상업용 증기기관차를 만들어 ‘철도 시대’의 서막을 열었고, 막대한 부를 쌓아 영국 산업계의 전설이 되었습니다. 그가 가진 것은 배경도, 학벌도 아니었습니다. 새로운 기술을 남보다 먼저 붙잡겠다는 간절함, 그것 하나였습니다.</p>
         <p class="card-num">2/6</p>
       </article>
 
-      <article class="card frame" style="--mx:80; --my:199; --mw:230; --mh:203;">
+      <article class="card page frame" style="--mx:80; --my:199; --mw:230; --mh:203;">
         <div class="card-media"><video src="assets/video/s3.mp4" loop muted playsinline preload="metadata" disablepictureinpicture></video></div>
         <div class="card-head"><h2>육체에서 지식으로</h2><span class="year">(2026)</span></div>
         <p class="card-body">1차 산업혁명이 블루칼라, 즉 육체 노동자의 세계를 흔들었다면, AI 시대는 화이트칼라, 지식·전문직 노동자의 세계를 정면으로 흔들고 있습니다. 차이는 속도입니다. 산업혁명이 퍼지는 데는 수십 년에서 수백 년이 걸렸지만, AI는 단 몇 주, 몇 달 만에 퍼집니다. 게다가 산업혁명이 ‘원래 하던 일’을 대체했다면, AI는 생각지도 못한 영역까지 대체하고 있습니다. 그 결과 많은 사람이 뒤처지는 것을 넘어, 아예 진입조차 생각하지 않고 외면해 버리는 현상까지 벌어지고 있습니다.</p>
         <p class="card-num">3/6</p>
       </article>
 
-      <article class="card frame" style="--mx:59; --my:199; --mw:265; --mh:204;">
+      <article class="card page frame" style="--mx:59; --my:199; --mw:265; --mh:204;">
         <div class="card-media"><video src="assets/video/s4.mp4" loop muted playsinline preload="metadata" disablepictureinpicture></video></div>
         <div class="card-head"><h2>새로운 땅</h2><span class="year">(2026)</span></div>
         <p class="card-body">AI는 선택받은 사람들만의 것이 아닙니다. 오히려 아무것도 모르는 사람을 위한 것이라 해도 될 만큼, 지식인이 아닌 사람이 적게 투자하고 많이 가져가는 로우리스크 하이리턴의 기회입니다. 스티븐슨의 시대에 증기기관이 그랬듯이 말입니다. 그런데 사람들은 하지 않습니다. 미디어가 외치는 ‘AI 찬양’과 ‘지금 안 하면 늦는다’는 결핍 마케팅에 대한 반감이 쌓여, AI를 한다는 것 자체가 무겁고 부담스러운 일로 느껴지기 때문일 것입니다. 저는 그 무게를 걷어내고 싶습니다.</p>
         <p class="card-num">4/6</p>
       </article>
 
-      <article class="card frame" style="--mx:104; --my:176; --mw:182; --mh:250;">
+      <article class="card page frame" style="--mx:104; --my:176; --mw:182; --mh:250;">
         <div class="card-media"><video src="assets/video/s5.mp4" loop muted playsinline preload="metadata" disablepictureinpicture></video></div>
         <div class="card-head"><h2>불씨</h2><span class="year">(2026)</span></div>
         <p class="card-body">이 자리는 AI 용어를 외우는 시간이 아닙니다. 5시간이 끝나면 당신은 오늘 아침까지 손으로 하던 일 하나를 AI에게 맡기는 법을 알게 되고, “나는 못 해”라는 말이 왜 틀렸는지를 머리가 아니라 손으로 확인하게 됩니다. 그리고 내일 무엇부터 해야 하는지가 종이 한 장에 적혀 있을 겁니다. 스티븐슨이 야간 학교에서 처음 글자를 읽은 그 밤처럼, 그 시작이면 충분합니다.</p>
         <p class="card-num">5/6</p>
       </article>
 
-      <article class="card frame" style="--mx:99; --my:177; --mw:191; --mh:249;">
+      <article class="card page frame" style="--mx:99; --my:177; --mw:191; --mh:249;">
         <div class="card-media"><video src="assets/video/s6.mp4" loop muted playsinline preload="metadata" disablepictureinpicture></video></div>
         <div class="card-head"><h2>1,000만원</h2><span class="year">(2026)</span></div>
         <p class="card-body">저는 이 5시간이 그 이상의 값어치를 하는 시간이라고 믿지만, 이 지식의 가치를 돈으로 팔지 않습니다. AI를 향한 저의 진심을 어떤 욕심도 없이 나누기 위해, 이 행사에는 스폰서도, 단톡방도, 그 이후의 어떠한 액션도 두지 않습니다. 단 하루 진행하고 사라집니다. 이 컨퍼런스에 필요한 것은 딱 하나, AI를 배우고자 하는 당신의 마음가짐과 간절함뿐입니다.</p>
@@ -659,9 +654,9 @@ section { position: relative; }
 
   /* ── DOM ───────────────────────────────────────── */
   const heroSec = document.getElementById("hero");
-  const statsSec = document.getElementById("stats");
-  const cardsSec = document.getElementById("cards");
+  const deckSec = document.getElementById("deck");
   const infoSec = document.getElementById("info");
+  const statsPage = document.getElementById("statsPage");
 
   const titleStack = document.getElementById("statTitle");
   const numStack = document.getElementById("numStack");
@@ -671,6 +666,7 @@ section { position: relative; }
 
   const cards = [...document.querySelectorAll(".card")];
   const videos = cards.map((c) => c.querySelector("video"));
+  const pages = [statsPage, ...cards]; // 0 = 2페이지, 1~6 = 카드
 
   const logo = document.getElementById("logo");
   const logoVideo = logo.querySelector("video");
@@ -917,7 +913,12 @@ section { position: relative; }
   /* ─────────────────────────────────────────────────
      스크롤 구동
      ───────────────────────────────────────────────── */
-  const FADE = 0.18; // 카드 교차 구간 (카드 1장 = 1.0)
+  const FADE = 0.18;   // 페이지 교차 구간 (페이지 1장 = 1.0)
+  const FLY = 110;     // 위로 빠지고 아래에서 올라오는 거리 (디자인 px)
+  const STEP_UNIT = 62;   // 대주제 한 스텝에 주는 스크롤 (svh)
+  const CARD_UNIT = 130;  // 카드 한 장에 주는 스크롤 (svh)
+  const STATS_UNITS = STEP_UNIT * 7;
+  const CARD_UNITS = CARD_UNIT * 6;
   let infoDone = false;
 
   function update() {
@@ -933,41 +934,51 @@ section { position: relative; }
       const e = q < 0.5 ? 2 * q * q : 1 - Math.pow(-2 * q + 2, 2) / 2;
       logo.style.setProperty("--e", e.toFixed(4));
 
-      const unpin = statsSec.offsetTop + statsSec.offsetHeight - vh;
-      const out = clamp((y - unpin) / (vh * 0.5), 0, 1);
-      logo.style.opacity = String(1 - out);
+      // 로고가 실제로 사라지는 시점은 아래 2페이지 처리에서 결정한다
       heroDate.style.opacity = String(clamp(1 - y / (vh * 0.28), 0, 1));
     }
 
-    /* — 대주제 / 숫자 — */
-    const sSpan = statsSec.offsetHeight - vh;
-    const sp = clamp((y - statsSec.offsetTop) / (sSpan || 1), 0, 1);
-    const step = clamp(Math.floor(sp * STEPS.length), 0, STEPS.length - 1);
+    /* — 2~8 페이지 — */
+    const dSpan = deckSec.offsetHeight - vh;
+    const P = clamp((y - deckSec.offsetTop) / (dSpan || 1), 0, 1);
+    const scrolled = P * (STATS_UNITS + CARD_UNITS);
+
+    // 2페이지 안에서의 대주제 스텝
+    const step = clamp(Math.floor(scrolled / STEP_UNIT), 0, STEPS.length - 1);
     if (step !== curStep) {
       applyStep(step, step > curStep ? 1 : -1);
       curStep = step;
     }
 
-    /* — 카드 — */
-    const cTop = cardsSec.offsetTop;
-    const cSpan = cardsSec.offsetHeight - vh;
-    const cp = clamp((y - cTop) / (cSpan || 1), 0, 1);
-    const t = cp * cards.length;
+    // 페이지 위치. u<0 은 아직 2페이지 구간, u=0 에서 3페이지가 자리를 잡는다.
+    const u = (scrolled - STATS_UNITS) / CARD_UNIT;
 
     let best = 0;
     let bestOp = -1;
 
-    cards.forEach((card, i) => {
-      const d = t - i;
-      const op = clamp(Math.min((d + FADE) / FADE, (1 + FADE - d) / FADE), 0, 1);
-      card.style.opacity = op;
-      card.style.visibility = op > 0.001 ? "visible" : "hidden";
-      card.style.zIndex = String(cards.length - i);
-      if (op >= bestOp) { bestOp = op; best = i; }
+    pages.forEach((page, p) => {
+      const d = u - p + 1;                     // p=0(2페이지) 은 d = u+1
+      // 2페이지는 대주제 스텝 내내 자리를 지키므로 들어오는 구간이 없다
+      const enter = p === 0 ? 1 : clamp(d / FADE, 0, 1);
+      const exit = clamp((d - 1) / FADE, 0, 1);
+      const op = Math.min(enter, 1 - exit);
+
+      // 들어올 때는 아래에서 감속하며, 나갈 때는 위로 가속하며 훅
+      const rise = 1 - enter;
+      const ty = rise * rise * FLY - exit * exit * FLY;
+
+      page.style.setProperty("--ty", ty.toFixed(2));
+      page.style.opacity = op;
+      page.style.visibility = op > 0.001 ? "visible" : "hidden";
+      page.style.zIndex = String(pages.length - p);
+      if (op >= bestOp) { bestOp = op; best = p; }
     });
 
-    const inCards = y > cTop - vh * 0.5 && y < cTop + cardsSec.offsetHeight;
-    const active = inCards ? best : -1;
+    // 로고도 2페이지와 같이 위로 훅 빠진다 (3페이지부터는 Figma 에도 로고가 없음)
+    logo.style.opacity = statsPage.style.opacity;
+    logo.style.setProperty("--lty", statsPage.style.getPropertyValue("--ty") || "0");
+
+    const active = best >= 1 ? best - 1 : -1;
 
     if (active !== audibleIdx) {
       audibleIdx = active;
