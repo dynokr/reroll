@@ -41,14 +41,15 @@
    화면 전체를 Figma 프레임(390×844)을 그대로 축소/확대한 캔버스로 다룬다.
    --k 는 "디자인 1px" 의 실제 길이. 가로·세로가 같은 배율이라
    디자인의 간격 비율이 어떤 기기에서도 그대로 유지된다.
-   상태바(0~44)는 웹에 없고 실제 콘텐츠는 y=750 에서 끝나므로 세로 기준은 706.
+   가로를 꽉 채우는 것을 우선하고, 남는 세로는 아래에서 잘라낸다.
+   다만 본문이 끝나는 y=734(=44+690)까지는 어떤 화면에서도 보이도록 하한을 둔다.
    ───────────────────────────────────────────── */
 :root {
   color-scheme: dark;
 
   --colw: min(100vw, 430px);
-  --k: min(calc(var(--colw) / 390), calc(100vh / 706));
-  --k: min(calc(var(--colw) / 390), calc(100svh / 706));
+  --k: min(calc(var(--colw) / 390), calc(100vh / 690));
+  --k: min(calc(var(--colw) / 390), calc(100svh / 690));
 
   --bg: #000000;
   --white: #ffffff;
@@ -96,8 +97,8 @@ button { font: inherit; color: inherit; background: none; border: 0; }
   position: absolute;
   left: 50%;
   margin-left: calc(-195 * var(--k));
-  top: calc(-44 * var(--k) + (100vh - 706 * var(--k)) / 2);
-  top: calc(-44 * var(--k) + (100svh - 706 * var(--k)) / 2);
+  top: calc(-44 * var(--k) + max(0px, (100vh - 690 * var(--k)) / 2));
+  top: calc(-44 * var(--k) + max(0px, (100svh - 690 * var(--k)) / 2));
   width: calc(390 * var(--k));
   height: calc(844 * var(--k));
 }
@@ -205,7 +206,7 @@ section { position: relative; }
   position: absolute;
   left: 0;
   right: 0;
-  top: calc(720 * var(--k));
+  top: calc(690 * var(--k));
   display: flex;
   justify-content: center;
   transition: opacity 400ms ease;
