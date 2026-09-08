@@ -48,8 +48,13 @@
   color-scheme: dark;
 
   --colw: min(100vw, 430px);
-  --k: min(calc(var(--colw) / 390), calc(100vh / 690));
-  --k: min(calc(var(--colw) / 390), calc(100svh / 690));
+
+  /* 뷰포트 높이. 인앱 브라우저(Instagram 등)는 vh/svh 를 자기 상단 바를
+     무시한 전체 화면 높이로 보고하기 때문에, JS 가 실측값으로 덮어쓴다. */
+  --vh: 100vh;
+  --vh: 100svh;
+
+  --k: min(calc(var(--colw) / 390), calc(var(--vh) / 690));
 
   --bg: #000000;
   --white: #ffffff;
@@ -97,8 +102,7 @@ button { font: inherit; color: inherit; background: none; border: 0; }
   position: absolute;
   left: 50%;
   margin-left: calc(-195 * var(--k));
-  top: calc(-44 * var(--k) + max(0px, (100vh - 690 * var(--k)) / 2));
-  top: calc(-44 * var(--k) + max(0px, (100svh - 690 * var(--k)) / 2));
+  top: calc(-44 * var(--k) + max(0px, (var(--vh) - 690 * var(--k)) / 2));
   width: calc(390 * var(--k));
   height: calc(844 * var(--k));
 }
@@ -109,8 +113,7 @@ section { position: relative; }
 .stage {
   position: sticky;
   top: 0;
-  height: 100vh;
-  height: 100svh;
+  height: var(--vh);
   overflow: hidden;
 }
 
@@ -200,7 +203,7 @@ section { position: relative; }
 /* ─────────────────────────────────────────────
    1 ─ Hero
    ───────────────────────────────────────────── */
-#hero { height: 100vh; height: 100svh; }
+#hero { height: var(--vh); }
 
 .hint {
   position: absolute;
@@ -233,7 +236,7 @@ section { position: relative; }
    페이지는 제자리에서 바뀌지 않고, 나가는 쪽은 위로 훅 빠지고
    들어오는 쪽은 아래에서 올라온다.
    ───────────────────────────────────────────── */
-#deck { height: calc(100svh + 7 * 62svh + 6 * 130svh); }
+#deck { height: calc(var(--vh) * 13.14); } /* 1 + 7*0.62 + 6*1.30 */
 
 /* 페이지는 무대와 똑같은 크기의 불투명 판. 나가는 쪽이 불투명한 채로
    빠져야 두 화면이 섞여 보이지 않는다. 안쪽 .frame 이 디자인 좌표계. */
@@ -457,7 +460,7 @@ section { position: relative; }
 /* ─────────────────────────────────────────────
    4 ─ 안내
    ───────────────────────────────────────────── */
-#info { height: 100vh; height: 100svh; }
+#info { height: var(--vh); }
 
 .info-label,
 .info-value {
@@ -515,6 +518,9 @@ section { position: relative; }
   .hint i { animation: none; opacity: 0.5; }
 }
 </style>
+
+<!-- 첫 페인트 전에 실제 뷰포트 높이를 잡아둔다 (인앱 브라우저의 vh 오보고 대응) -->
+<script>document.documentElement.style.setProperty("--vh", window.innerHeight + "px");</script>
 </head>
 
 <body>
@@ -651,6 +657,23 @@ section { position: relative; }
   "use strict";
 
   const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+
+  /* 실제로 보이는 뷰포트 높이를 CSS 로 넘긴다.
+     스크롤 중 주소창이 접혔다 펴지는 정도의 변화는 무시해서 레이아웃이 튀지 않게 한다. */
+  const root = document.documentElement;
+  let vhPx = 0;
+  let vwPx = 0;
+  function syncViewport(force) {
+    const h = window.innerHeight;
+    const w = window.innerWidth;
+    const big = !vhPx || force || w !== vwPx || Math.abs(h - vhPx) / vhPx > 0.25;
+    if (!big) return false;
+    vhPx = h;
+    vwPx = w;
+    root.style.setProperty("--vh", h + "px");
+    return true;
+  }
+  syncViewport(true);
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   /* ── 대주제 · 숫자 데이터 ────────────────────────────
@@ -1036,6 +1059,7 @@ section { position: relative; }
 
   // 폭·높이가 바뀌면 목록 한 칸 간격도 바뀌므로 위치를 다시 잡는다
   function relayout() {
+    syncViewport(false);
     const prev = roster.style.transition;
     roster.style.transition = "none";
     roster.style.transform =
