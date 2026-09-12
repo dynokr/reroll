@@ -9,16 +9,16 @@
 window.DNA26_KEYNOTE = {
   /* 네 카드가 함께 쓰는 그리드 값 */
   grid: {
-    pitch: 4,
-    gap: 0.2,
-    radius: 0.2,
+    pitch: 4.25,
+    gap: 0.21,
+    radius: 0,
     quantize: 0,
-    minAlpha: 0.02,
+    minAlpha: 0.11,
     color: "#ffffff",
     seed: 7,
-    flicker: { amp: 0.15, minPeriod: 2, maxPeriod: 4 },
-    transition: { duration: 1200, scatter: 0.9, stagger: 0.35, dip: 0.3, out: 0.4 },
-    autoCycle: 8000,
+    flicker: { amp: 0.28, minPeriod: 4.4, maxPeriod: 4 },
+    transition: { duration: 800, scatter: 1.8, stagger: 0.35, dip: 0.3, out: 0.4 },
+    autoCycle: 10000,
     reducedMotion: "auto"
   },
 
