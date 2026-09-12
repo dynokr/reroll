@@ -814,6 +814,7 @@ section { position: relative; }
 .faq-q[aria-expanded="true"] .faq-mark { transform: rotate(45deg); }
 
 .faq-a { overflow: hidden; }
+.faq-a a { color: #e3e3e3; text-decoration: underline; text-underline-offset: 2px; }
 .faq-a p {
   padding: 0 calc(10 * var(--k)) calc(22 * var(--k)) calc(2 * var(--k));
   font-size: calc(14 * var(--k));
@@ -1037,37 +1038,37 @@ section { position: relative; }
             <button type="button" class="faq-q" aria-expanded="false">
               <span>DNA26은 어떤 행사인가요?</span><i class="faq-mark" aria-hidden="true"></i>
             </button>
-            <div class="faq-a" hidden><p></p></div>
+            <div class="faq-a" hidden><p>DNA26은 Dyno Next AI 2026의 줄임말로 AI Creative Director dyno(박종원)가 4시간 동안 진행하는 AI 원데이클래스입니다.</p></div>
           </li>
           <li class="faq-item">
             <button type="button" class="faq-q" aria-expanded="false">
               <span>온라인 시청이 가능한가요?</span><i class="faq-mark" aria-hidden="true"></i>
             </button>
-            <div class="faq-a" hidden><p></p></div>
+            <div class="faq-a" hidden><p>해당 컨퍼런스는 오프라인 참여자들만을 위한 행사로 온라인 신청이 불가능합니다.</p></div>
           </li>
           <li class="faq-item">
             <button type="button" class="faq-q" aria-expanded="false">
               <span>참가 신청 자격이 따로 있나요?</span><i class="faq-mark" aria-hidden="true"></i>
             </button>
-            <div class="faq-a" hidden><p></p></div>
+            <div class="faq-a" hidden><p>참가 신청 자격은 따로 없으나, 배움이 절실한 사람들이 꼭 와줬으면 좋겠습니다. 따라서 신청서의 ‘내가 이 컨퍼런스를 들어야 하는 이유’에 대한 답변을 중심적으로 참가자를 선정할 예정입니다.</p></div>
           </li>
           <li class="faq-item">
             <button type="button" class="faq-q" aria-expanded="false">
               <span>참가비용이 있나요?</span><i class="faq-mark" aria-hidden="true"></i>
             </button>
-            <div class="faq-a" hidden><p></p></div>
+            <div class="faq-a" hidden><p>참가 비용은 없습니다.</p></div>
           </li>
           <li class="faq-item">
             <button type="button" class="faq-q" aria-expanded="false">
               <span>주차가 가능한가요?</span><i class="faq-mark" aria-hidden="true"></i>
             </button>
-            <div class="faq-a" hidden><p></p></div>
+            <div class="faq-a" hidden><p>개인 주차가 불가능하며, 역삼권 행사장에서 진행될 예정입니다.</p></div>
           </li>
           <li class="faq-item">
             <button type="button" class="faq-q" aria-expanded="false">
               <span>기타 문의는 어디로 해야하나요?</span><i class="faq-mark" aria-hidden="true"></i>
             </button>
-            <div class="faq-a" hidden><p></p></div>
+            <div class="faq-a" hidden><p>기타 문의는 <a href="mailto:whddnjs761@gmail.com">whddnjs761@gmail.com</a>으로 연락 주시면 빠르게 답변드리겠습니다.</p></div>
           </li>
           </ul>
         </div>
@@ -1574,16 +1575,10 @@ section { position: relative; }
   /* ─────────────────────────────────────────────────
      FAQ — 한 번에 하나만 펼쳐지는 아코디언
      ───────────────────────────────────────────────── */
-  // 답변은 따로 정리해서 받기로 했다. 지금은 전부 같은 문구로 채워둔다.
-  const FAQ_ANSWER =
-    "참가 신청 자격은 따로 없으나, 배움이 절실한 사람들이 꼭 와줬으면 좋겠습니다. " +
-    "따라서 신청서의 ‘내가 이 컨퍼런스를 들어야 하는 이유’에 대한 답변을 중심적으로 참가자를 선정할 예정입니다.";
-
   const faqItems = [...document.querySelectorAll("#faqList .faq-item")];
   faqItems.forEach((item) => {
     const q = item.querySelector(".faq-q");
     const a = item.querySelector(".faq-a");
-    a.querySelector("p").textContent = FAQ_ANSWER;
 
     q.addEventListener("click", () => {
       const open = q.getAttribute("aria-expanded") === "true";
@@ -1602,6 +1597,11 @@ section { position: relative; }
     void a.offsetHeight;
     a.style.transition = reduced ? "none" : "height 340ms var(--ease)";
     a.style.height = h + "px";
+    // 다 열린 뒤에는 높이를 고정하지 않는다 (화면 크기가 바뀌어도 맞도록)
+    clearTimeout(a._t);
+    a._t = setTimeout(() => {
+      if (q.getAttribute("aria-expanded") === "true") a.style.height = "auto";
+    }, reduced ? 0 : 360);
   }
 
   function closeFaq(item) {
@@ -1609,6 +1609,7 @@ section { position: relative; }
     const a = item.querySelector(".faq-a");
     if (q.getAttribute("aria-expanded") !== "true") return;
     q.setAttribute("aria-expanded", "false");
+    clearTimeout(a._t);
     a.style.height = a.scrollHeight + "px";
     void a.offsetHeight;
     a.style.height = "0px";
