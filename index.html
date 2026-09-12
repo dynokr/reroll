@@ -877,6 +877,7 @@ section { position: relative; }
 <script src="assets/pixelgrid/pixelgrid.js"></script>
 <script src="assets/pixelgrid/landmask.js"></script>
 <script src="assets/pixelgrid/faces.js"></script>
+<script src="assets/pixelgrid/keynote.config.js"></script>
 
 <audio id="bgm" src="assets/audio/bgm.m4a" loop preload="none" playsinline></audio>
 
@@ -1628,56 +1629,70 @@ section { position: relative; }
 
   /* ─────────────────────────────────────────────────
      발표세션 카드 아트 — PixelGrid (dynokr/dna26-pixelgrid)
-     ───────────────────────────────────────────────── */
-  const PG_GRID = {
-    pitch: 4, gap: 0.2, radius: 0.2, quantize: 0, minAlpha: 0.02, color: "#ffffff", seed: 7,
-    flicker: { amp: 0.15, minPeriod: 2, maxPeriod: 4 },
-    transition: { duration: 1200, scatter: 0.9, stagger: 0.35, dip: 0.3, out: 0.4 },
-    autoCycle: 8000, reducedMotion: "auto"
-  };
-  const PG_SCENES = {
-    globe: () => [PixelGrid.scenes.globe({
-      radius: 0.46, cx: 0.5, cy: 0.5, period: 20, direction: 1, tilt: 0,
-      lon0: 0, edge: 0.35, ocean: 0.3, land: 1, supersample: 3
-    })],
-    text: () => ["가", "あ", "道", "A"].map((g) => PixelGrid.scenes.text({
-      name: g, text: g, font: PixelGrid.FONT, weight: 800, size: 0.62, depth: 2.2,
-      spin: true, period: 10, angle: 32, tilt: 0.35, faceBright: 1, backBright: 0.6,
-      sideBright: 0.45, sideFade: 0.5, maxWidth: 0.92, supersample: 3, gain: 1, gamma: 1, floor: 0.02
-    })),
-    faces: () => ["character", "human"].map((k) => PixelGrid.scenes.image(Object.assign(
-      { name: k, fit: "contain", scale: 0.92, gain: 1, gamma: 1, floor: 0.02,
-        motion: { spinPeriod: 0, swayX: 1.2, swayY: 0.6, swayPeriod: 5, zoomAmp: 0.06, zoomPeriod: 7 } },
-      PixelGrid.assets.images[k]))),
-    bulb: () => [PixelGrid.scenes.bulb({
-      period: 10, pulsePeriod: 2.6, glow: 1, rays: 1, size: 1, glass: 0.16,
-      turns: 16, cy: 0.44, supersample: 3, gain: 1, gamma: 1, floor: 0.02
-    })]
-  };
-  // 에셋별 전환 속도 (플레이그라운드 프리셋)
-  const PG_OVERRIDE = {
-    text: { transition: { duration: 1400 }, autoCycle: 6000 },
-    faces: { transition: { duration: 1800 }, autoCycle: 4500 }
-  };
-  // 각 카드 아트 박스의 디자인 폭 (Figma 값)
-  const PG_WIDTH = { globe: 145, text: 129, faces: 110, bulb: 135 };
 
-  const pixelGrids = [];
+     설정은 assets/pixelgrid/keynote.config.js 에 있고, 모양은
+     플레이그라운드의 config 객체와 같습니다. 주소에 ?tune 을 붙이면
+     이 자리에서 값을 조절할 수 있습니다.
+     ───────────────────────────────────────────────── */
+  const PG_WIDTH = { globe: 145, text: 129, faces: 110, bulb: 135 }; // 카드 아트 박스의 디자인 폭
+  const pixelGrids = {};
+
+  function pgConfig() {
+    return window.DNA26_KEYNOTE || {};
+  }
+
+  function deepMerge(base, patch) {
+    const out = Object.assign({}, base);
+    for (const k in patch) {
+      const v = patch[k];
+      out[k] = v && typeof v === "object" && !Array.isArray(v)
+        ? deepMerge(out[k] || {}, v) : v;
+    }
+    return out;
+  }
+
+  function pgScenes(key, cfg) {
+    if (key === "globe") return [PixelGrid.scenes.globe(cfg.globe || {})];
+    if (key === "bulb") return [PixelGrid.scenes.bulb(cfg.bulb || {})];
+    if (key === "text") {
+      const t = cfg.text || {};
+      const style = Object.assign({ font: PixelGrid.FONT }, t.style || {});
+      return (t.glyphs || ["가"]).map((g) =>
+        PixelGrid.scenes.text(Object.assign({ name: g, text: g }, style)));
+    }
+    if (key === "faces") {
+      const f = Object.assign({}, cfg.faces || {});
+      delete f.grid;
+      return ["character", "human"].map((k) =>
+        PixelGrid.scenes.image(Object.assign({ name: k }, f, PixelGrid.assets.images[k])));
+    }
+    return [];
+  }
+
   function mountPixelGrids() {
     if (typeof PixelGrid === "undefined") return;
+    const cfg = pgConfig();
     document.querySelectorAll(".kn-art").forEach((el) => {
       const key = el.dataset.scene;
-      const make = PG_SCENES[key];
-      if (!make || el.dataset.mounted) return;
+      if (!PG_WIDTH[key]) return;
       try {
-        const opts = Object.assign({ designWidth: PG_WIDTH[key], scenes: make() },
-          JSON.parse(JSON.stringify(PG_GRID)), PG_OVERRIDE[key] || {});
-        pixelGrids.push(PixelGrid.mount(el, opts));
-        el.dataset.mounted = "1";
+        if (pixelGrids[key]) { pixelGrids[key].destroy(); delete pixelGrids[key]; }
+        el.innerHTML = "";
+        const grid = deepMerge(cfg.grid || {}, (cfg[key] && cfg[key].grid) || {});
+        pixelGrids[key] = PixelGrid.mount(el, Object.assign(
+          { designWidth: PG_WIDTH[key], scenes: pgScenes(key, cfg) }, grid));
       } catch (e) { /* 엔진이 없으면 카드는 빈 채로 둔다 */ }
     });
   }
   mountPixelGrids();
+
+  // 조절 패널은 ?tune 일 때만 불러온다
+  if (/[?&]tune\b/.test(location.search)) {
+    const sc = document.createElement("script");
+    sc.src = "assets/pixelgrid/tune.js";
+    document.body.appendChild(sc);
+    window.DNA26_TUNE = { mount: mountPixelGrids, grids: pixelGrids, widths: PG_WIDTH, pageIndex: cards.length + 1 };
+  }
 
 
   /* ─────────────────────────────────────────────────
