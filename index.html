@@ -607,10 +607,14 @@ section { position: relative; }
   overflow-x: auto;
   overflow-y: hidden;
   scroll-snap-type: x mandatory;
+  cursor: grab;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
 .kn-rail::-webkit-scrollbar { display: none; }
+/* 끌고 있는 동안에는 스냅을 풀어야 손끝을 따라온다 */
+.kn-rail.is-dragging { cursor: grabbing; scroll-snap-type: none; user-select: none; }
+.kn-rail.is-dragging * { pointer-events: none; }
 
 .kn-card {
   position: relative;
@@ -1048,12 +1052,6 @@ section { position: relative; }
           </li>
           <li class="faq-item">
             <button type="button" class="faq-q" aria-expanded="false">
-              <span>온라인 시청이 가능한가요?</span><i class="faq-mark" aria-hidden="true"></i>
-            </button>
-            <div class="faq-a" hidden><p></p></div>
-          </li>
-          <li class="faq-item">
-            <button type="button" class="faq-q" aria-expanded="false">
               <span>참가비용이 있나요?</span><i class="faq-mark" aria-hidden="true"></i>
             </button>
             <div class="faq-a" hidden><p></p></div>
@@ -1263,7 +1261,7 @@ section { position: relative; }
      (media element 의 .volume 도 iOS 는 무시하므로 음량은 GainNode 로 조절)
      ───────────────────────────────────────────────── */
   const BGM_VOL = 0.35;
-  const SCENE_VOL = 0.16;
+  const SCENE_VOL = 0.08;
   let soundOn = false;
   let audibleIdx = -1;
   let userDecided = false;
@@ -1680,6 +1678,56 @@ section { position: relative; }
     });
   }
   mountPixelGrids();
+
+
+  /* ─────────────────────────────────────────────────
+     키노트 레일 — 손가락은 브라우저 기본 스크롤, 마우스는 끌어서 넘기기
+     ───────────────────────────────────────────────── */
+  const knRail = document.getElementById("knRail");
+  if (knRail) {
+    let dragging = false;
+    let startX = 0;
+    let startScroll = 0;
+
+    knRail.addEventListener("pointerdown", (e) => {
+      if (e.pointerType === "touch") return; // 터치는 기본 스크롤이 이미 자연스럽다
+      dragging = true;
+      startX = e.clientX;
+      startScroll = knRail.scrollLeft;
+      knRail.classList.add("is-dragging");
+      try { knRail.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+
+    knRail.addEventListener("pointermove", (e) => {
+      if (!dragging) return;
+      e.preventDefault();
+      knRail.scrollLeft = startScroll - (e.clientX - startX);
+    });
+
+    const endDrag = (e) => {
+      if (!dragging) return;
+      dragging = false;
+      knRail.classList.remove("is-dragging");
+      try { knRail.releasePointerCapture(e.pointerId); } catch (err) {}
+      // 손을 떼면 가장 가까운 카드를 가운데로 (scroll-snap-align: center 와 같은 자리)
+      const mid = knRail.scrollLeft + knRail.clientWidth / 2;
+      let best = null;
+      let bestD = Infinity;
+      knRail.querySelectorAll(".kn-card").forEach((c) => {
+        const d = Math.abs(c.offsetLeft + c.offsetWidth / 2 - mid);
+        if (d < bestD) { bestD = d; best = c; }
+      });
+      if (best) {
+        knRail.scrollTo({
+          left: best.offsetLeft + best.offsetWidth / 2 - knRail.clientWidth / 2,
+          behavior: reduced ? "auto" : "smooth"
+        });
+      }
+    };
+    knRail.addEventListener("pointerup", endDrag);
+    knRail.addEventListener("pointercancel", endDrag);
+    knRail.addEventListener("dragstart", (e) => e.preventDefault());
+  }
 
   let ticking = false;
   function schedule() {
