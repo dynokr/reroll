@@ -236,7 +236,7 @@ section { position: relative; }
    페이지는 제자리에서 바뀌지 않고, 나가는 쪽은 위로 훅 빠지고
    들어오는 쪽은 아래에서 올라온다.
    ───────────────────────────────────────────── */
-#deck { height: calc(var(--vh) * 13.14); } /* 1 + 7*0.62 + 6*1.30 */
+#deck { height: calc(var(--vh) * 17.04); } /* 1 + 7*0.62 + 9*1.30 */
 
 /* 페이지는 무대와 똑같은 크기의 불투명 판. 나가는 쪽이 불투명한 채로
    빠져야 두 화면이 섞여 보이지 않는다. 안쪽 .frame 이 디자인 좌표계. */
@@ -423,7 +423,7 @@ section { position: relative; }
   font-family: var(--display);
   font-weight: 700;
   font-size: calc(25 * var(--k));
-  line-height: 1.2;
+  line-height: calc(37 * var(--k)); /* Figma 텍스트 박스 높이 */
   color: var(--white);
   white-space: nowrap;
 }
@@ -513,6 +513,311 @@ section { position: relative; }
 }
 .reveal.is-in { opacity: 1; transform: none; filter: blur(0); }
 
+
+/* ─────────────────────────────────────────────
+   메뉴 — 햄버거(13×2.05, x=342) 가 제자리에서 X 로 접힌다
+   ───────────────────────────────────────────── */
+#menuBtn {
+  position: absolute;
+  left: calc(342 * var(--k));
+  top: calc(68.68 * var(--k));
+  width: calc(13 * var(--k));
+  height: calc(11.63 * var(--k));
+  cursor: pointer;
+  pointer-events: auto;
+  z-index: 2;
+  -webkit-tap-highlight-color: transparent;
+}
+#menuBtn::before { content: ""; position: absolute; inset: calc(-14 * var(--k)); }
+#menuBtn i {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: calc(2.053 * var(--k));
+  background: #fff;
+  transform-origin: center;
+  transition: transform 380ms var(--ease), opacity 200ms var(--ease);
+}
+#menuBtn i:nth-child(1) { top: 0; }
+#menuBtn i:nth-child(2) { top: calc(4.79 * var(--k)); }
+#menuBtn i:nth-child(3) { top: calc(9.58 * var(--k)); }
+#menuBtn[aria-expanded="true"] i:nth-child(1) { transform: translateY(calc(4.79 * var(--k))) rotate(45deg); }
+#menuBtn[aria-expanded="true"] i:nth-child(2) { opacity: 0; transform: scaleX(0.3); }
+#menuBtn[aria-expanded="true"] i:nth-child(3) { transform: translateY(calc(-4.79 * var(--k))) rotate(-45deg); }
+
+#menu {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  background: rgba(0, 0, 0, 0.35);
+  -webkit-backdrop-filter: blur(5.6px);
+  backdrop-filter: blur(5.6px);
+  pointer-events: auto;
+  opacity: 0;
+  transition: opacity 320ms var(--ease);
+}
+#menu.is-open { opacity: 1; }
+#menu ul { position: absolute; left: calc(65 * var(--k)); top: calc(137 * var(--k)); }
+#menu li { list-style: none; height: calc(77 * var(--k)); }
+#menu li button {
+  display: block;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: calc(25 * var(--k));
+  line-height: calc(37 * var(--k)); /* Figma 텍스트 박스 높이 */
+  color: var(--white);
+  cursor: pointer;
+  padding: 0;
+  opacity: 0;
+  transform: translateY(calc(14 * var(--k)));
+  transition: opacity 380ms var(--ease), transform 380ms var(--ease);
+}
+#menu.is-open li button { opacity: 1; transform: none; }
+#menu.is-open li:nth-child(1) button { transition-delay: 40ms; }
+#menu.is-open li:nth-child(2) button { transition-delay: 80ms; }
+#menu.is-open li:nth-child(3) button { transition-delay: 120ms; }
+#menu.is-open li:nth-child(4) button { transition-delay: 160ms; }
+
+/* 섹션 제목 — Kakao Big Sans Bold 25px */
+.sec-title {
+  position: absolute;
+  left: calc(37 * var(--k));
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: calc(25 * var(--k));
+  line-height: calc(37 * var(--k)); /* Figma 텍스트 박스 높이 */
+  color: var(--white);
+  white-space: nowrap;
+}
+
+/* ─────────────────────────────────────────────
+   발표세션 (키노트) — 카드 4장 가로 캐러셀
+   ───────────────────────────────────────────── */
+.kn-head { top: calc(179 * var(--k)); }
+
+.kn-rail {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(229 * var(--k));
+  height: calc(311 * var(--k));
+  display: flex;
+  gap: calc(10 * var(--k));
+  padding-inline: calc(35 * var(--k));
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.kn-rail::-webkit-scrollbar { display: none; }
+
+.kn-card {
+  position: relative;
+  list-style: none;
+  flex: 0 0 auto;
+  width: calc(228 * var(--k));
+  height: calc(311 * var(--k));
+  background: #25252a;
+  border-radius: calc(15 * var(--k));
+  scroll-snap-align: center;
+  overflow: hidden;
+}
+/* Figma 의 카드별 아트 박스 */
+.kn-card:nth-child(1) .kn-art { left: calc(43 * var(--k)); top: calc(15 * var(--k)); width: calc(145 * var(--k)); height: calc(149 * var(--k)); }
+.kn-card:nth-child(2) .kn-art { left: calc(45 * var(--k)); top: calc(20 * var(--k)); width: calc(129 * var(--k)); height: calc(147 * var(--k)); }
+.kn-card:nth-child(3) .kn-art { left: calc(64 * var(--k)); top: calc(18 * var(--k)); width: calc(110 * var(--k)); height: calc(140 * var(--k)); }
+.kn-card:nth-child(4) .kn-art { left: calc(41 * var(--k)); top: calc(15 * var(--k)); width: calc(135 * var(--k)); height: calc(143 * var(--k)); }
+.kn-art { position: absolute; }
+.kn-art canvas { display: block; width: 100%; height: 100%; }
+
+.kn-time {
+  position: absolute;
+  left: 0; right: 0;
+  top: calc(167 * var(--k));
+  text-align: center;
+  font-size: calc(12 * var(--k));
+  line-height: 1;
+  color: #909090;
+}
+.kn-title {
+  position: absolute;
+  left: 0; right: 0;
+  top: calc(185 * var(--k));
+  text-align: center;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: calc(25 * var(--k));
+  line-height: calc(30 * var(--k));
+  color: var(--white);
+}
+.kn-desc {
+  position: absolute;
+  left: 0; right: 0;
+  top: calc(256 * var(--k));
+  text-align: center;
+  font-size: calc(11 * var(--k));
+  line-height: calc(14 * var(--k));
+  color: #909090;
+}
+
+.kn-host { position: absolute; left: calc(37 * var(--k)); top: calc(569 * var(--k)); }
+.kn-avatar {
+  position: absolute;
+  left: 0; top: 0;
+  width: calc(57 * var(--k));
+  height: calc(57 * var(--k));
+  border-radius: 50%;
+  background: #25252a;
+  overflow: hidden;
+}
+.kn-avatar img {
+  position: absolute;
+  left: calc(-4 * var(--k));
+  top: calc(-3 * var(--k));
+  width: calc(65 * var(--k));
+  height: calc(64 * var(--k));
+  max-width: none;
+  object-fit: cover;
+}
+.kn-name {
+  position: absolute;
+  left: calc(68 * var(--k));
+  top: calc(7 * var(--k));
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: calc(15 * var(--k));
+  line-height: 1.2;
+  color: var(--white);
+  white-space: nowrap;
+}
+.kn-role {
+  position: absolute;
+  left: calc(114 * var(--k));
+  top: calc(9 * var(--k));
+  font-size: calc(13 * var(--k));
+  font-weight: 500;
+  line-height: 1.2;
+  color: #bebebe;
+  white-space: nowrap;
+}
+.kn-bio {
+  position: absolute;
+  left: calc(68 * var(--k));
+  top: calc(29 * var(--k));
+  font-size: calc(13 * var(--k));
+  font-weight: 500;
+  line-height: 1.2;
+  color: #bebebe;
+  white-space: nowrap;
+}
+
+/* ─────────────────────────────────────────────
+   참가신청
+   ───────────────────────────────────────────── */
+.ap-head { top: calc(175 * var(--k)); }
+.ap-label, .ap-value, .ap-note {
+  position: absolute;
+  left: calc(37 * var(--k));
+  white-space: nowrap;
+}
+.ap-label { font-size: calc(18 * var(--k)); font-weight: 600; line-height: calc(18 * var(--k)); color: #a3a3a3; }
+.ap-value { font-size: calc(22 * var(--k)); font-weight: 500; line-height: calc(18 * var(--k)); color: #e3e3e3; }
+.v3 { line-height: calc(27 * var(--k)); }
+.ap-note  { font-size: calc(17 * var(--k)); font-weight: 500; line-height: calc(21 * var(--k)); color: #696969; }
+.ap-head + .ap-label { }
+.l1 { top: calc(242 * var(--k)); }
+.v1 { top: calc(272 * var(--k)); }
+.l2 { top: calc(320 * var(--k)); }
+.v2 { top: calc(350 * var(--k)); }
+.l3 { top: calc(398 * var(--k)); }
+.v3 { top: calc(428 * var(--k)); }
+.ap-note { top: calc(512 * var(--k)); }
+
+.ap-btn {
+  position: absolute;
+  left: calc(95 * var(--k));
+  top: calc(614 * var(--k));
+  width: calc(199 * var(--k));
+  height: calc(55 * var(--k));
+  border-radius: calc(16 * var(--k));
+  background: #ffffff;
+  color: #000000;
+  font-size: calc(20 * var(--k));
+  font-weight: 600;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition: opacity 200ms var(--ease), transform 200ms var(--ease);
+}
+.ap-btn:active { transform: scale(0.98); }
+.ap-btn[aria-disabled="true"] { opacity: 0.45; cursor: not-allowed; }
+
+/* ─────────────────────────────────────────────
+   FAQ — 한 번에 하나만 펼쳐지는 아코디언
+   ───────────────────────────────────────────── */
+.faq-head { top: calc(114 * var(--k)); }
+
+.faq-list {
+  position: absolute;
+  left: calc(35 * var(--k));
+  top: calc(199 * var(--k));
+  width: calc(320 * var(--k));
+}
+.faq-item { list-style: none; border-top: 1px solid #343434; }
+.faq-item:last-child { border-bottom: 1px solid #343434; }
+
+.faq-q {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: calc(59 * var(--k));
+  padding: 0 calc(34 * var(--k)) 0 calc(2 * var(--k));
+  text-align: left;
+  font-size: calc(18 * var(--k));
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--white);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* + 표시가 45° 돌아 × 가 된다 */
+.faq-mark {
+  position: absolute;
+  right: calc(2 * var(--k));
+  top: 50%;
+  width: calc(15.5 * var(--k));
+  height: calc(15.5 * var(--k));
+  margin-top: calc(-7.75 * var(--k));
+  transition: transform 340ms var(--ease);
+}
+.faq-mark::before,
+.faq-mark::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  background: #fff;
+  transform: translate(-50%, -50%);
+}
+.faq-mark::before { width: 100%; height: calc(1.6 * var(--k)); }
+.faq-mark::after  { width: calc(1.6 * var(--k)); height: 100%; }
+.faq-q[aria-expanded="true"] .faq-mark { transform: rotate(45deg); }
+
+.faq-a { overflow: hidden; }
+.faq-a p {
+  padding: 0 calc(10 * var(--k)) calc(22 * var(--k)) calc(2 * var(--k));
+  font-size: calc(14 * var(--k));
+  font-weight: 500;
+  line-height: calc(17 * var(--k)); /* Figma: 답변 4줄 = 68px */
+  color: #a4a4a4;
+}
+
 /* ─────────────────────────────────────────────
    Reduced motion
    ───────────────────────────────────────────── */
@@ -547,8 +852,27 @@ section { position: relative; }
     </div>
 
     <p class="hero-date">2026.10.17</p>
+
+    <button id="menuBtn" type="button" aria-expanded="false" aria-controls="menu" aria-label="메뉴">
+      <i></i><i></i><i></i>
+    </button>
+
+    <nav id="menu" hidden>
+      <div class="frame">
+      <ul>
+        <li><button type="button" data-go="story">이야기</button></li>
+        <li><button type="button" data-go="keynote">발표세션</button></li>
+        <li><button type="button" data-go="apply">참가신청</button></li>
+        <li><button type="button" data-go="faq">FAQ</button></li>
+      </ul>
+      </div>
+    </nav>
   </div>
 </div>
+
+<script src="assets/pixelgrid/pixelgrid.js"></script>
+<script src="assets/pixelgrid/landmask.js"></script>
+<script src="assets/pixelgrid/faces.js"></script>
 
 <audio id="bgm" src="assets/audio/bgm.m4a" loop preload="none" playsinline></audio>
 
@@ -642,19 +966,114 @@ section { position: relative; }
         </div>
       </article>
 
-    </div>
-  </section>
+      <!-- 10 ─ 발표세션 (키노트) -->
+      <section class="page" id="keynotePage" aria-label="발표세션">
+        <div class="frame">
+          <h2 class="sec-title kn-head">키노트</h2>
+          <ul class="kn-rail" id="knRail">
+          <li class="kn-card">
+            <div class="kn-art" data-scene="globe"></div>
+            <p class="kn-time">13:00-14:00</p>
+            <h3 class="kn-title">AI에 오신 것을<br />환영합니다.</h3>
+            <p class="kn-desc">오늘 컨퍼런스에 대한 소개와<br />글로벌 AI 현황을 세계여행하듯 둘러봅니다.</p>
+          </li>
+          <li class="kn-card">
+            <div class="kn-art" data-scene="text"></div>
+            <p class="kn-time">14:00-15:00</p>
+            <h3 class="kn-title">AI와 소통하는 법<br />AI 커뮤니케이션</h3>
+            <p class="kn-desc">기본적인 AI 환경을 쉽게 이해하고<br />AI와 잘 대화해서 일하는 법을 알아봅니다.</p>
+          </li>
+          <li class="kn-card">
+            <div class="kn-art" data-scene="faces"></div>
+            <p class="kn-time">15:00-16:00</p>
+            <h3 class="kn-title">3천만 조회수<br />AI영상 총정리</h3>
+            <p class="kn-desc">AI 이미지, 영상툴에 대한 설명과<br />AI 영상을 잘 만들기 위한 팁들을 알아봅니다.</p>
+          </li>
+          <li class="kn-card">
+            <div class="kn-art" data-scene="bulb"></div>
+            <p class="kn-time">16:00-17:00</p>
+            <h3 class="kn-title">크리에이티브와<br />AI와 일하기</h3>
+            <p class="kn-desc">결국 AI 시대에도 중요한 창의력 문법과<br />AI와 쉽게 일하는 법을 알아봅니다.</p>
+          </li>
+          </ul>
+          <div class="kn-host">
+            <span class="kn-avatar"><img src="assets/img/host.jpg" alt="" /></span>
+            <p class="kn-name">박종원</p>
+            <p class="kn-role">AI Creative Director</p>
+            <p class="kn-bio">AI로 또 다른 세계를 만들고 있습니다.</p>
+          </div>
+        </div>
+      </section>
 
-  <!-- 4 ─ 안내 -->
-  <section id="info">
-    <div class="frame">
-      <p class="info-label l1 reveal">일정</p>
-      <p class="info-value v1 reveal">2026.10.17 (토) 12시~17시</p>
-      <p class="info-label l2 reveal">장소</p>
-      <p class="info-value v2 reveal">선정 시 개별 공지 (서울권)</p>
-      <p class="info-label l3 reveal">신청</p>
-      <!-- 신청이 열리면 이 한 줄을 <a href="…" class="apply reveal">신청하기</a> 로 교체 -->
-      <button class="apply reveal" type="button" disabled>곧,</button>
+      <!-- 9 ─ 참가신청 -->
+      <section class="page" id="applyPage" aria-label="참가신청">
+        <div class="frame">
+          <h2 class="sec-title ap-head">DNA26 참가신청</h2>
+
+          <p class="ap-label l1">참가 신청기간</p>
+          <p class="ap-value v1">~ 9월 18일 자정 12시까지</p>
+          <p class="ap-label l2">참가자 선정 발표</p>
+          <p class="ap-value v2">9월 20일</p>
+          <p class="ap-label l3">본 행사</p>
+          <p class="ap-value v3">10월 17일 오후 12시 ~ 17시<br />서울 역삼권 행사장</p>
+          <p class="ap-note">참가 확정 시 작성해 준 이메일/연락처로<br />개별 연락 드릴 예정입니다.</p>
+
+          <!-- 신청 폼이 열리면 아래 APPLY_URL 상수에 주소만 넣으면 됩니다 -->
+          <a class="ap-btn" id="applyBtn" role="button" aria-disabled="true">참가 신청하기</a>
+        </div>
+      </section>
+
+      <!-- 11 ─ FAQ -->
+      <section class="page" id="faqPage" aria-label="자주 묻는 질문">
+        <div class="frame">
+          <h2 class="sec-title faq-head">자주 묻는 질문</h2>
+          <ul class="faq-list" id="faqList">
+          <li class="faq-item">
+            <button type="button" class="faq-q" aria-expanded="false">
+              <span>DNA26은 어떤 행사인가요?</span><i class="faq-mark" aria-hidden="true"></i>
+            </button>
+            <div class="faq-a" hidden><p></p></div>
+          </li>
+          <li class="faq-item">
+            <button type="button" class="faq-q" aria-expanded="false">
+              <span>온라인 시청이 가능한가요?</span><i class="faq-mark" aria-hidden="true"></i>
+            </button>
+            <div class="faq-a" hidden><p></p></div>
+          </li>
+          <li class="faq-item">
+            <button type="button" class="faq-q" aria-expanded="false">
+              <span>참가 신청 자격이 따로 있나요?</span><i class="faq-mark" aria-hidden="true"></i>
+            </button>
+            <div class="faq-a" hidden><p></p></div>
+          </li>
+          <li class="faq-item">
+            <button type="button" class="faq-q" aria-expanded="false">
+              <span>온라인 시청이 가능한가요?</span><i class="faq-mark" aria-hidden="true"></i>
+            </button>
+            <div class="faq-a" hidden><p></p></div>
+          </li>
+          <li class="faq-item">
+            <button type="button" class="faq-q" aria-expanded="false">
+              <span>참가비용이 있나요?</span><i class="faq-mark" aria-hidden="true"></i>
+            </button>
+            <div class="faq-a" hidden><p></p></div>
+          </li>
+          <li class="faq-item">
+            <button type="button" class="faq-q" aria-expanded="false">
+              <span>주차가 가능한가요?</span><i class="faq-mark" aria-hidden="true"></i>
+            </button>
+            <div class="faq-a" hidden><p></p></div>
+          </li>
+          <li class="faq-item">
+            <button type="button" class="faq-q" aria-expanded="false">
+              <span>기타 문의는 어디로 해야하나요?</span><i class="faq-mark" aria-hidden="true"></i>
+            </button>
+            <div class="faq-a" hidden><p></p></div>
+          </li>
+          </ul>
+        </div>
+      </section>
+
     </div>
   </section>
 
@@ -705,7 +1124,6 @@ section { position: relative; }
   /* ── DOM ───────────────────────────────────────── */
   const heroSec = document.getElementById("hero");
   const deckSec = document.getElementById("deck");
-  const infoSec = document.getElementById("info");
   const statsPage = document.getElementById("statsPage");
 
   const titleStack = document.getElementById("statTitle");
@@ -716,7 +1134,11 @@ section { position: relative; }
 
   const cards = [...document.querySelectorAll(".card")];
   const videos = cards.map((c) => c.querySelector("video"));
-  const pages = [statsPage, ...cards]; // 0 = 2페이지, 1~6 = 카드
+  const keynotePage = document.getElementById("keynotePage");
+  const applyPage = document.getElementById("applyPage");
+  const faqPage = document.getElementById("faqPage");
+  // 0 = 대주제/숫자, 1~6 = 이야기 카드, 7 = 발표세션, 8 = 참가신청, 9 = FAQ
+  const pages = [statsPage, ...cards, keynotePage, applyPage, faqPage];
 
   const logo = document.getElementById("logo");
   const logoVideo = logo.querySelector("video");
@@ -1028,8 +1450,7 @@ section { position: relative; }
   const STEP_UNIT = 62;   // 대주제 한 스텝에 주는 스크롤 (svh)
   const CARD_UNIT = 130;  // 카드 한 장에 주는 스크롤 (svh)
   const STATS_UNITS = STEP_UNIT * 7;
-  const CARD_UNITS = CARD_UNIT * 6;
-  let infoDone = false;
+  const CARD_UNITS = CARD_UNIT * 9; // 카드 6 + 발표세션 + 참가신청 + FAQ
 
   function update() {
     const vh = window.innerHeight;
@@ -1092,7 +1513,8 @@ section { position: relative; }
     });
     void bestOp;
 
-    const active = best >= 1 ? best - 1 : -1;
+    // 영상·본문 스트리밍은 이야기 카드(페이지 1~6) 에만 해당
+    const active = best >= 1 && best <= cards.length ? best - 1 : -1;
 
     if (active !== audibleIdx) {
       audibleIdx = active;
@@ -1104,16 +1526,160 @@ section { position: relative; }
         playStream(bodies[active]);
       }
     }
+  }
 
-    /* — 안내 섹션 — */
-    if (!infoDone && y + vh > infoSec.offsetTop + vh * 0.35) {
-      infoDone = true;
-      [...infoSec.querySelectorAll(".reveal")].forEach((el, i) => {
-        el.style.transitionDelay = i * 90 + "ms";
-        el.classList.add("is-in");
-      });
+
+  /* ─────────────────────────────────────────────────
+     메뉴 — 열기/닫기 + 섹션 이동
+     ───────────────────────────────────────────────── */
+  const menuBtn = document.getElementById("menuBtn");
+  const menu = document.getElementById("menu");
+
+  // 메뉴 항목 → 그 페이지가 자리를 잡는 스크롤 위치
+  const TARGET = { story: 0, keynote: cards.length + 1, apply: cards.length + 2, faq: cards.length + 3 };
+
+  function pageScrollY(p) {
+    const vh = window.innerHeight;
+    const span = deckSec.offsetHeight - vh;
+    // p=0 은 덱 시작. 그 외에는 그 페이지가 완전히 자리 잡은 지점을 조금 지나서.
+    const units = p === 0 ? 0 : STATS_UNITS + (p - 1 + 0.55) * CARD_UNIT;
+    return deckSec.offsetTop + span * (units / (STATS_UNITS + CARD_UNITS));
+  }
+
+  function setMenu(open) {
+    menuBtn.setAttribute("aria-expanded", open ? "true" : "false");
+    if (open) {
+      menu.hidden = false;
+      void menu.offsetHeight; // 강제 리플로우 — 숨겨진 탭에서 rAF 가 멈춰도 동작하도록
+      menu.classList.add("is-open");
+    } else {
+      menu.classList.remove("is-open");
+      setTimeout(() => { if (!menu.classList.contains("is-open")) menu.hidden = true; }, 340);
     }
   }
+
+  menuBtn.addEventListener("click", () => setMenu(menu.hidden || !menu.classList.contains("is-open")));
+
+  menu.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-go]");
+    if (!btn) { setMenu(false); return; }        // 바깥을 누르면 닫힘
+    setMenu(false);
+    const y = pageScrollY(TARGET[btn.dataset.go]);
+    window.scrollTo({ top: y, behavior: reduced ? "auto" : "smooth" });
+  });
+
+  addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !menu.hidden) setMenu(false);
+  });
+
+  /* ─────────────────────────────────────────────────
+     FAQ — 한 번에 하나만 펼쳐지는 아코디언
+     ───────────────────────────────────────────────── */
+  // 답변은 따로 정리해서 받기로 했다. 지금은 전부 같은 문구로 채워둔다.
+  const FAQ_ANSWER =
+    "참가 신청 자격은 따로 없으나, 배움이 절실한 사람들이 꼭 와줬으면 좋겠습니다. " +
+    "따라서 신청서의 ‘내가 이 컨퍼런스를 들어야 하는 이유’에 대한 답변을 중심적으로 참가자를 선정할 예정입니다.";
+
+  const faqItems = [...document.querySelectorAll("#faqList .faq-item")];
+  faqItems.forEach((item) => {
+    const q = item.querySelector(".faq-q");
+    const a = item.querySelector(".faq-a");
+    a.querySelector("p").textContent = FAQ_ANSWER;
+
+    q.addEventListener("click", () => {
+      const open = q.getAttribute("aria-expanded") === "true";
+      faqItems.forEach((other) => { if (other !== item) closeFaq(other); });
+      if (open) closeFaq(item); else openFaq(item);
+    });
+  });
+
+  function openFaq(item) {
+    const q = item.querySelector(".faq-q");
+    const a = item.querySelector(".faq-a");
+    q.setAttribute("aria-expanded", "true");
+    a.hidden = false;
+    const h = a.scrollHeight;
+    a.style.height = "0px";
+    void a.offsetHeight;
+    a.style.transition = reduced ? "none" : "height 340ms var(--ease)";
+    a.style.height = h + "px";
+  }
+
+  function closeFaq(item) {
+    const q = item.querySelector(".faq-q");
+    const a = item.querySelector(".faq-a");
+    if (q.getAttribute("aria-expanded") !== "true") return;
+    q.setAttribute("aria-expanded", "false");
+    a.style.height = a.scrollHeight + "px";
+    void a.offsetHeight;
+    a.style.height = "0px";
+    setTimeout(() => { if (q.getAttribute("aria-expanded") !== "true") a.hidden = true; }, reduced ? 0 : 340);
+  }
+
+  /* ─────────────────────────────────────────────────
+     참가신청 버튼 — 주소가 정해지면 여기에만 넣으면 된다
+     ───────────────────────────────────────────────── */
+  const APPLY_URL = "";
+  const applyBtn = document.getElementById("applyBtn");
+  if (APPLY_URL) {
+    applyBtn.href = APPLY_URL;
+    applyBtn.target = "_blank";
+    applyBtn.rel = "noopener noreferrer";
+    applyBtn.removeAttribute("aria-disabled");
+  }
+
+  /* ─────────────────────────────────────────────────
+     발표세션 카드 아트 — PixelGrid (dynokr/dna26-pixelgrid)
+     ───────────────────────────────────────────────── */
+  const PG_GRID = {
+    pitch: 4, gap: 0.2, radius: 0.2, quantize: 0, minAlpha: 0.02, color: "#ffffff", seed: 7,
+    flicker: { amp: 0.15, minPeriod: 2, maxPeriod: 4 },
+    transition: { duration: 1200, scatter: 0.9, stagger: 0.35, dip: 0.3, out: 0.4 },
+    autoCycle: 8000, reducedMotion: "auto"
+  };
+  const PG_SCENES = {
+    globe: () => [PixelGrid.scenes.globe({
+      radius: 0.46, cx: 0.5, cy: 0.5, period: 20, direction: 1, tilt: 0,
+      lon0: 0, edge: 0.35, ocean: 0.3, land: 1, supersample: 3
+    })],
+    text: () => ["가", "あ", "道", "A"].map((g) => PixelGrid.scenes.text({
+      name: g, text: g, font: PixelGrid.FONT, weight: 800, size: 0.62, depth: 2.2,
+      spin: true, period: 10, angle: 32, tilt: 0.35, faceBright: 1, backBright: 0.6,
+      sideBright: 0.45, sideFade: 0.5, maxWidth: 0.92, supersample: 3, gain: 1, gamma: 1, floor: 0.02
+    })),
+    faces: () => ["character", "human"].map((k) => PixelGrid.scenes.image(Object.assign(
+      { name: k, fit: "contain", scale: 0.92, gain: 1, gamma: 1, floor: 0.02,
+        motion: { spinPeriod: 0, swayX: 1.2, swayY: 0.6, swayPeriod: 5, zoomAmp: 0.06, zoomPeriod: 7 } },
+      PixelGrid.assets.images[k]))),
+    bulb: () => [PixelGrid.scenes.bulb({
+      period: 10, pulsePeriod: 2.6, glow: 1, rays: 1, size: 1, glass: 0.16,
+      turns: 16, cy: 0.44, supersample: 3, gain: 1, gamma: 1, floor: 0.02
+    })]
+  };
+  // 에셋별 전환 속도 (플레이그라운드 프리셋)
+  const PG_OVERRIDE = {
+    text: { transition: { duration: 1400 }, autoCycle: 6000 },
+    faces: { transition: { duration: 1800 }, autoCycle: 4500 }
+  };
+  // 각 카드 아트 박스의 디자인 폭 (Figma 값)
+  const PG_WIDTH = { globe: 145, text: 129, faces: 110, bulb: 135 };
+
+  const pixelGrids = [];
+  function mountPixelGrids() {
+    if (typeof PixelGrid === "undefined") return;
+    document.querySelectorAll(".kn-art").forEach((el) => {
+      const key = el.dataset.scene;
+      const make = PG_SCENES[key];
+      if (!make || el.dataset.mounted) return;
+      try {
+        const opts = Object.assign({ designWidth: PG_WIDTH[key], scenes: make() },
+          JSON.parse(JSON.stringify(PG_GRID)), PG_OVERRIDE[key] || {});
+        pixelGrids.push(PixelGrid.mount(el, opts));
+        el.dataset.mounted = "1";
+      } catch (e) { /* 엔진이 없으면 카드는 빈 채로 둔다 */ }
+    });
+  }
+  mountPixelGrids();
 
   let ticking = false;
   function schedule() {
